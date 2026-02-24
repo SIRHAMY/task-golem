@@ -1,0 +1,28 @@
+[project]
+prefix = "TG"
+# backlog_path = "BACKLOG.yaml"
+
+[guardrails]
+max_size = "medium"
+max_complexity = "medium"
+max_risk = "medium"
+
+[execution]
+phase_timeout_minutes = 30
+max_retries = 2
+default_phase_cap = 100
+max_wip = 5
+max_concurrent = 3
+
+[pipelines.feature]
+pre_phases = [
+    { name = "research", workflows = [".claude/skills/changes/workflows/orchestration/research-scope.md"], is_destructive = false },
+]
+phases = [
+    { name = "prd",           workflows = [".claude/skills/changes/workflows/0-prd/create-prd.md"],                    is_destructive = false },
+    { name = "tech-research", workflows = [".claude/skills/changes/workflows/1-tech-research/tech-research.md"],       is_destructive = false },
+    { name = "design",        workflows = [".claude/skills/changes/workflows/2-design/design.md"],                     is_destructive = false },
+    { name = "spec",          workflows = [".claude/skills/changes/workflows/3-spec/create-spec.md"],                  is_destructive = false },
+    { name = "build",         workflows = [".claude/skills/changes/workflows/orchestration/build-spec-phase.md"],      is_destructive = true },
+    { name = "review",        workflows = [".claude/skills/changes/workflows/5-review/change-review.md"],              is_destructive = false },
+]

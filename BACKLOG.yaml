@@ -1,0 +1,16 @@
+schema_version: 3
+items:
+- id: TG-001
+  title: Agent-native work tracker
+  status: in_progress
+  phase: build
+  size: medium
+  complexity: high
+  risk: low
+  impact: high
+  requires_human_review: false
+  created: 2026-02-24T23:17:45.278322533+00:00
+  updated: 2026-02-24T23:17:45.278322533+00:00
+  pipeline_type: feature
+  phase_pool: main
+next_item_id: 1
