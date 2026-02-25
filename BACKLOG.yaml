@@ -11,7 +11,7 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:05:35.153540236+00:00
-  updated: 2026-02-25T01:52:22.671341171+00:00
+  updated: 2026-02-25T01:58:31.123895381+00:00
   pipeline_type: feature
   phase_pool: main
   last_phase_commit: 70d496430be1da1498df9772ab7fbabd3518541d
@@ -42,7 +42,7 @@ items:
 - id: TG-005
   title: Add no-op detection to tg edit
   status: in_progress
-  phase: tech-research
+  phase: design
   size: small
   complexity: low
   risk: low
@@ -50,10 +50,10 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
-  updated: 2026-02-25T01:57:00.956026018+00:00
+  updated: 2026-02-25T01:57:00.971689640+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: fbbd1de796cacfd58c3c4c77673441c8a3cc13b8
+  last_phase_commit: 59c7cc2cd43c0c61f21022a250c9a4416c1a72b2
 - id: TG-006
   title: Support clearing description field via tg edit
   status: in_progress
