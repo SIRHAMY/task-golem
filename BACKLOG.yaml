@@ -11,7 +11,7 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:05:35.153540236+00:00
-  updated: 2026-02-25T02:03:55.868490035+00:00
+  updated: 2026-02-25T02:11:54.783697399+00:00
   pipeline_type: feature
   phase_pool: main
   last_phase_commit: b2e73549680bcbc61d7b74802ef2c6050019ccfd
@@ -27,7 +27,7 @@ items:
 - id: TG-004
   title: Optimize load_archive_ids to avoid full deserialization
   status: in_progress
-  phase: spec
+  phase: build
   size: small
   complexity: low
   risk: low
@@ -35,7 +35,7 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
-  updated: 2026-02-25T02:06:55.432989772+00:00
+  updated: 2026-02-25T02:06:55.438373785+00:00
   pipeline_type: feature
   phase_pool: main
   last_phase_commit: 9b70cb1c2e53eb6846e8682896e949b70cbc4213
@@ -185,4 +185,22 @@ items:
   origin: TG-004/prd
   created: 2026-02-25T01:51:22.164694811+00:00
   updated: 2026-02-25T01:51:22.164694811+00:00
-next_item_id: 19
+- id: TG-020
+  title: Add tg doctor check for non-x-prefixed extension keys
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-002/spec
+  created: 2026-02-25T02:11:54.784493148+00:00
+  updated: 2026-02-25T02:11:54.784493148+00:00
+- id: TG-021
+  title: Add write-path validate_extensions() for defense-in-depth
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-002/spec
+  created: 2026-02-25T02:11:54.784493148+00:00
+  updated: 2026-02-25T02:11:54.784493148+00:00
+next_item_id: 21
