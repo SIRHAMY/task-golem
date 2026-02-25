@@ -1,8 +1,5 @@
-#[allow(dead_code)] // Used in later phases
 pub mod jsonl;
-#[allow(dead_code)] // Used in later phases
 pub mod lock;
-#[allow(dead_code)] // Used in later phases
 pub mod root;
 
 use std::collections::HashSet;
@@ -11,12 +8,10 @@ use std::path::PathBuf;
 use crate::errors::TgError;
 use crate::model::item::Item;
 
-#[allow(dead_code)] // Used in later phases
 pub struct Store {
     project_dir: PathBuf,
 }
 
-#[allow(dead_code)] // Methods used in later phases
 impl Store {
     pub fn new(project_dir: PathBuf) -> Self {
         Store { project_dir }
@@ -73,6 +68,7 @@ impl Store {
     }
 
     /// Union of active IDs + archive IDs.
+    #[allow(dead_code)] // Used in later phases
     pub fn all_known_ids(&self) -> Result<HashSet<String>, TgError> {
         let active = self.load_active()?;
         let archive_ids = self.load_archive_ids()?;
@@ -84,6 +80,7 @@ impl Store {
     }
 
     /// Append a single item to the archive file.
+    #[allow(dead_code)] // Used in Phase 3
     pub fn append_to_archive(&self, item: &Item) -> Result<(), TgError> {
         jsonl::append_to_archive(&self.archive_path(), item)
     }

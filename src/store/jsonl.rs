@@ -154,6 +154,7 @@ pub fn write_atomic(path: &Path, items: &[Item]) -> Result<(), TgError> {
 ///
 /// The archive file must already exist with a schema header (created by `tg init`).
 /// If the file is missing or empty, writes the schema header first.
+#[allow(dead_code)] // Used in Phase 3
 pub fn append_to_archive(path: &Path, item: &Item) -> Result<(), TgError> {
     // If the file doesn't exist or is empty, write schema header first
     let needs_header = !path.exists() || fs::metadata(path).map(|m| m.len() == 0).unwrap_or(true);

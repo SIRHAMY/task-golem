@@ -56,6 +56,7 @@ where
 }
 
 /// Calculate backoff delays for testing purposes (without jitter).
+#[cfg(test)]
 pub fn backoff_delays(count: usize) -> Vec<u64> {
     let mut delays = Vec::with_capacity(count);
     let mut backoff_ms = INITIAL_BACKOFF_MS;
@@ -68,6 +69,7 @@ pub fn backoff_delays(count: usize) -> Vec<u64> {
 
 /// The number of retry iterations before total backoff exceeds 5s (without jitter).
 /// Used to verify the backoff schedule stays within timeout bounds.
+#[cfg(test)]
 fn max_retries_within_timeout() -> usize {
     let mut total_ms = 0u64;
     let mut backoff_ms = INITIAL_BACKOFF_MS;

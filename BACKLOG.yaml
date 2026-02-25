@@ -10,10 +10,10 @@ items:
   impact: high
   requires_human_review: false
   created: 2026-02-24T23:17:45.278322533+00:00
-  updated: 2026-02-25T00:05:35.144000601+00:00
+  updated: 2026-02-25T00:18:59.835888384+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: 61be957051951143cdfe5f358bcc0e33aa170d81
+  last_phase_commit: f3f462a67153f298b17e2ab6026877b201d61f68
 - id: TG-002
   title: Validate extension key collision with serde(flatten)
   status: new
@@ -32,4 +32,31 @@ items:
   origin: TG-001/build
   created: 2026-02-25T00:05:35.153540236+00:00
   updated: 2026-02-25T00:05:35.153540236+00:00
-next_item_id: 3
+- id: TG-004
+  title: Optimize load_archive_ids to avoid full deserialization
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:18:59.836756581+00:00
+  updated: 2026-02-25T00:18:59.836756581+00:00
+- id: TG-005
+  title: Add no-op detection to tg edit
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:18:59.836756581+00:00
+  updated: 2026-02-25T00:18:59.836756581+00:00
+- id: TG-006
+  title: Support clearing description field via tg edit
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:18:59.836756581+00:00
+  updated: 2026-02-25T00:18:59.836756581+00:00
+next_item_id: 6

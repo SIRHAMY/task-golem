@@ -33,6 +33,23 @@ impl Status {
     }
 }
 
+impl std::str::FromStr for Status {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "todo" => Ok(Status::Todo),
+            "doing" => Ok(Status::Doing),
+            "done" => Ok(Status::Done),
+            "blocked" => Ok(Status::Blocked),
+            _ => Err(format!(
+                "Invalid status '{}'. Valid values: todo, doing, done, blocked",
+                s
+            )),
+        }
+    }
+}
+
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

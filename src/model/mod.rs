@@ -1,4 +1,5 @@
-#[allow(dead_code)] // Used in later phases
+pub mod deps;
+pub mod extensions;
 pub mod id;
 pub mod item;
 pub mod status;

@@ -23,4 +23,99 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
     },
+
+    /// Add a new item
+    Add {
+        /// Item title (single line)
+        title: String,
+
+        /// Item description
+        #[arg(long)]
+        description: Option<String>,
+
+        /// Priority (higher = more important)
+        #[arg(long, default_value_t = 0)]
+        priority: i64,
+
+        /// Add a dependency (repeatable)
+        #[arg(long = "dep", num_args = 1)]
+        deps: Vec<String>,
+
+        /// Add a tag (repeatable)
+        #[arg(long = "tag", num_args = 1)]
+        tags: Vec<String>,
+
+        /// Set an extension field (repeatable, KEY=VALUE format)
+        #[arg(long = "set", num_args = 1)]
+        sets: Vec<String>,
+    },
+
+    /// List items
+    List {
+        /// Filter by status
+        #[arg(long)]
+        status: Option<String>,
+
+        /// Filter by tag
+        #[arg(long)]
+        tag: Option<String>,
+    },
+
+    /// Show a single item
+    Show {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+    },
+
+    /// Edit an existing item
+    Edit {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+
+        /// New title
+        #[arg(long)]
+        title: Option<String>,
+
+        /// New priority
+        #[arg(long)]
+        priority: Option<i64>,
+
+        /// New description
+        #[arg(long)]
+        description: Option<String>,
+
+        /// Add a dependency (repeatable)
+        #[arg(long = "add-dep", num_args = 1)]
+        add_deps: Vec<String>,
+
+        /// Remove a dependency (repeatable)
+        #[arg(long = "rm-dep", num_args = 1)]
+        rm_deps: Vec<String>,
+
+        /// Add a tag (repeatable)
+        #[arg(long = "add-tag", num_args = 1)]
+        add_tags: Vec<String>,
+
+        /// Remove a tag (repeatable)
+        #[arg(long = "rm-tag", num_args = 1)]
+        rm_tags: Vec<String>,
+
+        /// Set an extension field (repeatable, KEY=VALUE format)
+        #[arg(long = "set", num_args = 1)]
+        sets: Vec<String>,
+    },
+
+    /// Remove an item
+    Rm {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+
+        /// Force remove even if other items depend on this one
+        #[arg(long)]
+        force: bool,
+
+        /// Also remove this item's ID from all dependents' dep lists
+        #[arg(long = "clear-deps")]
+        clear_deps: bool,
+    },
 }

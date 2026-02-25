@@ -191,7 +191,7 @@ The schema version check in v1 only validates version == 1 and rejects anything 
 
 > add, list, show, edit, rm commands with dot-path extensions and cycle detection
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** High
 
@@ -222,45 +222,45 @@ The schema version check in v1 only validates version == 1 and rejects anything 
 
 *Dot-Path Extension Mutation (implement and test in isolation before wiring into commands):*
 
-- [ ] Implement dot-path parsing in `src/model/extensions.rs`: parse `x-foo.bar.baz` into path segments, validate first segment starts with `x-` (reject non-x- keys with exit 1)
-- [ ] Implement value parsing: empty string = delete, else try JSON parse (numbers, booleans, objects, arrays, null), else treat as string literal. Note: `--set x-foo=true` produces boolean `true`, `--set x-foo=42` produces number `42`, `--set x-foo=hello` produces string `"hello"`
-- [ ] Implement set/overwrite/create-intermediate logic: create intermediate objects for nested paths. Overwrite non-object values when creating nested paths (e.g., `x-foo` is string `"hello"`, then `--set x-foo.bar=1` overwrites with `{"bar": 1}`). Apply multiple `--set` flags left-to-right sequentially
-- [ ] Implement delete with recursive parent cleanup: `--set x-foo.bar=` (empty value) deletes key `bar`. If parent object `x-foo` is now empty, delete it too. Recurse up the chain
-- [ ] Write unit tests for extensions: nested object creation (`x-foo.bar=1` → `{"x-foo": {"bar": 1}}`), JSON value parsing (numbers, booleans, objects, arrays), string fallback, deletion via empty value, recursive parent cleanup, `x-` prefix validation (reject non-x- keys), overwrite conflict (existing string overwritten by nested set), multiple sets interaction (`--set x-a=1 --set x-a.b=2` → second overwrites first)
+- [x] Implement dot-path parsing in `src/model/extensions.rs`: parse `x-foo.bar.baz` into path segments, validate first segment starts with `x-` (reject non-x- keys with exit 1)
+- [x] Implement value parsing: empty string = delete, else try JSON parse (numbers, booleans, objects, arrays, null), else treat as string literal. Note: `--set x-foo=true` produces boolean `true`, `--set x-foo=42` produces number `42`, `--set x-foo=hello` produces string `"hello"`
+- [x] Implement set/overwrite/create-intermediate logic: create intermediate objects for nested paths. Overwrite non-object values when creating nested paths (e.g., `x-foo` is string `"hello"`, then `--set x-foo.bar=1` overwrites with `{"bar": 1}`). Apply multiple `--set` flags left-to-right sequentially
+- [x] Implement delete with recursive parent cleanup: `--set x-foo.bar=` (empty value) deletes key `bar`. If parent object `x-foo` is now empty, delete it too. Recurse up the chain
+- [x] Write unit tests for extensions: nested object creation (`x-foo.bar=1` → `{"x-foo": {"bar": 1}}`), JSON value parsing (numbers, booleans, objects, arrays), string fallback, deletion via empty value, recursive parent cleanup, `x-` prefix validation (reject non-x- keys), overwrite conflict (existing string overwritten by nested set), multiple sets interaction (`--set x-a=1 --set x-a.b=2` → second overwrites first)
 
 *Dependency Validation and Cycle Detection:*
 
-- [ ] Implement `would_create_cycle(items, source_id, new_dep_id) -> bool` in `src/model/deps.rs` via DFS from new_dep_id following dependency edges in active items only (archived items are terminal, cannot create cycles)
-- [ ] Implement `validate_dep(dep_id, active_items, archive_ids) -> Result<Vec<Warning>>` — checks existence in active or archive, warns on missing from both stores. Self-dep rejection (`source_id == dep_id`)
-- [ ] Implement `detect_all_cycles(items) -> Vec<Vec<String>>` — full-graph cycle detection via topological sort for use by `tg doctor` in Phase 4. More efficient than per-edge DFS for whole-store validation
-- [ ] Write unit tests for deps: self-dep rejected, direct cycle (A↔B), transitive cycle (A→B→C→A), diamond (non-cyclic), dep on archived item (no warning), dep on non-existent item (warning), multiple deps added together checked correctly
+- [x] Implement `would_create_cycle(items, source_id, new_dep_id) -> bool` in `src/model/deps.rs` via DFS from new_dep_id following dependency edges in active items only (archived items are terminal, cannot create cycles)
+- [x] Implement `validate_dep(dep_id, active_items, archive_ids) -> Result<Vec<Warning>>` — checks existence in active or archive, warns on missing from both stores. Self-dep rejection (`source_id == dep_id`)
+- [x] Implement `detect_all_cycles(items) -> Vec<Vec<String>>` — full-graph cycle detection via topological sort for use by `tg doctor` in Phase 4. More efficient than per-edge DFS for whole-store validation
+- [x] Write unit tests for deps: self-dep rejected, direct cycle (A↔B), transitive cycle (A→B→C→A), diamond (non-cyclic), dep on archived item (no warning), dep on non-existent item (warning), multiple deps added together checked correctly
 
 *Commands:*
 
-- [ ] Add clap args for `tg add`: positional title (required), `--description`, `--priority` (i64), `--dep` (repeated), `--tag` (repeated), `--set` (repeated key=value pairs)
-- [ ] Implement `tg add` handler: validate title (single-line), find root, acquire lock, load active store, load archive IDs for collision check, generate ID, validate deps (existence check with warnings, self-dep rejection, cycle detection for each dep), parse `--set` extensions via dot-path, create Item (status=todo, priority=default 0, timestamps=now), save, output new item
-- [ ] Write integration tests for add: basic add, add with all optional fields, JSON output schema validation (verify: id matches `^tg-[0-9a-f]{5}$`, status is `"todo"`, all null fields present not omitted, timestamps parse as ISO 8601), title newline rejection (exit 1), dep on non-existent ID produces warning on stderr but succeeds, multiple adds create distinct IDs
-- [ ] Add clap args for `tg list`: `--status` (optional filter), `--tag` (optional filter), `--json`
-- [ ] Implement `tg list` handler: find root, load active store (no lock). If `--status done`, load full archive via `load_all_archive()`. Apply status filter, tag filter. Default (no filters): all non-done active items (explicitly filter out status=done, matching PRD's "Default: all non-done items" — do not rely on the incidental behavior that done items are archived). Sort by priority desc then created_at asc. Output list
-- [ ] Write integration tests for list: default shows all active non-done items, filter by status, filter by tag, combined filters, sort order verification, `--status done` loads archive and returns done items, empty result is `[]` in JSON
-- [ ] Add clap args for `tg show`: positional ID (required), `--json`
-- [ ] Implement `tg show` handler: find root, load active store (no lock), resolve ID with active+archive scope (exact/prefix-prepend/prefix-match across active then archive). If not found in either, exit 1. Output full item
-- [ ] Write integration tests for show: full ID, bare hex (`a3f82`), prefix match, ambiguous prefix error with matching IDs listed, archive fallback (create item → manually write to archive.jsonl for test), not found exits 1, JSON schema validated for archived items (all fields present including null claim fields)
-- [ ] Add clap args for `tg edit`: positional ID, `--title`, `--priority`, `--description`, `--add-dep` (repeated), `--rm-dep` (repeated), `--add-tag` (repeated), `--rm-tag` (repeated), `--set` (repeated)
-- [ ] Implement `tg edit` handler: find root, acquire lock, load active store, resolve ID (active-only scope — cannot edit archived items). Apply field changes: title (validate single-line), priority, description. Apply dep changes: `--add-dep` validates existence, self-dep rejection, cycle detection; `--rm-dep` removes. Apply tag changes. Apply extension changes via dot-path. Update `updated_at`. Save. Output updated item
-- [ ] Write integration tests for edit: change each field type, add dep with cycle rejection, remove dep, add/remove tags, set/delete extension fields (including overwrite-conflict integration test: `tg add "T" --set x-foo=hello && tg edit <id> --set x-foo.bar=1` → verify `x-foo` is `{"bar": 1}`), updated_at changes, edit non-existent ID exits 1
-- [ ] Add clap args for `tg rm`: positional ID, `--force`, `--clear-deps`
-- [ ] Implement `tg rm` handler: find root, acquire lock, load active store, resolve ID. Check for dependents (items that list this ID in their dependencies). If dependents exist and no `--force`: exit 1 with message listing dependents and explaining both `--force` and `--force --clear-deps` options. With `--force`: remove item (leave dangling deps). With `--force --clear-deps`: remove item AND remove its ID from all dependents' dep lists. `--clear-deps` without `--force`: ignored (no-op if no dependents). Save. Output confirmation JSON `{"removed": "tg-xxxxx"}` (with `"cleared_deps_from": [...]` if `--clear-deps` was used)
-- [ ] Write integration tests for rm: basic remove, remove with dependents (error with helpful message), `--force` (dangling deps remain), `--force --clear-deps` (cascading cleanup — verify dependent's dep list no longer contains removed ID via `tg show`), `--clear-deps` without `--force` on item with no dependents (succeeds normally), remove non-existent exits 1, JSON output schema
+- [x] Add clap args for `tg add`: positional title (required), `--description`, `--priority` (i64), `--dep` (repeated), `--tag` (repeated), `--set` (repeated key=value pairs)
+- [x] Implement `tg add` handler: validate title (single-line), find root, acquire lock, load active store, load archive IDs for collision check, generate ID, validate deps (existence check with warnings, self-dep rejection, cycle detection for each dep), parse `--set` extensions via dot-path, create Item (status=todo, priority=default 0, timestamps=now), save, output new item
+- [x] Write integration tests for add: basic add, add with all optional fields, JSON output schema validation (verify: id matches `^tg-[0-9a-f]{5}$`, status is `"todo"`, all null fields present not omitted, timestamps parse as ISO 8601), title newline rejection (exit 1), dep on non-existent ID produces warning on stderr but succeeds, multiple adds create distinct IDs
+- [x] Add clap args for `tg list`: `--status` (optional filter), `--tag` (optional filter), `--json`
+- [x] Implement `tg list` handler: find root, load active store (no lock). If `--status done`, load full archive via `load_all_archive()`. Apply status filter, tag filter. Default (no filters): all non-done active items (explicitly filter out status=done, matching PRD's "Default: all non-done items" — do not rely on the incidental behavior that done items are archived). Sort by priority desc then created_at asc. Output list
+- [x] Write integration tests for list: default shows all active non-done items, filter by status, filter by tag, combined filters, sort order verification, `--status done` loads archive and returns done items, empty result is `[]` in JSON
+- [x] Add clap args for `tg show`: positional ID (required), `--json`
+- [x] Implement `tg show` handler: find root, load active store (no lock), resolve ID with active+archive scope (exact/prefix-prepend/prefix-match across active then archive). If not found in either, exit 1. Output full item
+- [x] Write integration tests for show: full ID, bare hex (`a3f82`), prefix match, ambiguous prefix error with matching IDs listed, archive fallback (create item → manually write to archive.jsonl for test), not found exits 1, JSON schema validated for archived items (all fields present including null claim fields)
+- [x] Add clap args for `tg edit`: positional ID, `--title`, `--priority`, `--description`, `--add-dep` (repeated), `--rm-dep` (repeated), `--add-tag` (repeated), `--rm-tag` (repeated), `--set` (repeated)
+- [x] Implement `tg edit` handler: find root, acquire lock, load active store, resolve ID (active-only scope — cannot edit archived items). Apply field changes: title (validate single-line), priority, description. Apply dep changes: `--add-dep` validates existence, self-dep rejection, cycle detection; `--rm-dep` removes. Apply tag changes. Apply extension changes via dot-path. Update `updated_at`. Save. Output updated item
+- [x] Write integration tests for edit: change each field type, add dep with cycle rejection, remove dep, add/remove tags, set/delete extension fields (including overwrite-conflict integration test: `tg add "T" --set x-foo=hello && tg edit <id> --set x-foo.bar=1` → verify `x-foo` is `{"bar": 1}`), updated_at changes, edit non-existent ID exits 1
+- [x] Add clap args for `tg rm`: positional ID, `--force`, `--clear-deps`
+- [x] Implement `tg rm` handler: find root, acquire lock, load active store, resolve ID. Check for dependents (items that list this ID in their dependencies). If dependents exist and no `--force`: exit 1 with message listing dependents and explaining both `--force` and `--force --clear-deps` options. With `--force`: remove item (leave dangling deps). With `--force --clear-deps`: remove item AND remove its ID from all dependents' dep lists. `--clear-deps` without `--force`: ignored (no-op if no dependents). Save. Output confirmation JSON `{"removed": "tg-xxxxx"}` (with `"cleared_deps_from": [...]` if `--clear-deps` was used)
+- [x] Write integration tests for rm: basic remove, remove with dependents (error with helpful message), `--force` (dangling deps remain), `--force --clear-deps` (cascading cleanup — verify dependent's dep list no longer contains removed ID via `tg show`), `--clear-deps` without `--force` on item with no dependents (succeeds normally), remove non-existent exits 1, JSON output schema
 
 **Verification:**
 
-- [ ] `cargo test` passes all unit and integration tests (including Phase 1 tests — no regressions)
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] Full lifecycle (as automated integration test): `tg init && tg add "Task A" && tg add "Task B" --dep <A-id> && tg list --json && tg show <B-id> --json && tg edit <A-id> --priority 5 && tg rm <A-id> --force --clear-deps && tg show <B-id> --json` (verify B's deps no longer contain A)
-- [ ] Extension fields: `tg add "Test" --set x-meta.key=42 && tg show <id> --json` shows `"x-meta": {"key": 42}`
-- [ ] Cycle detection: `tg add "A" && tg add "B" --dep <A-id> && tg edit <A-id> --add-dep <B-id>` exits 1 with cycle error
-- [ ] Per-command JSON schema validation: each command's `--json` output checked for required fields (id format, status enum, timestamps as ISO 8601, null fields present, extension fields preserved)
+- [x] `cargo test` passes all unit and integration tests (including Phase 1 tests — no regressions)
+- [x] `cargo clippy -- -D warnings` passes
+- [x] Full lifecycle (as automated integration test): `tg init && tg add "Task A" && tg add "Task B" --dep <A-id> && tg list --json && tg show <B-id> --json && tg edit <A-id> --priority 5 && tg rm <A-id> --force --clear-deps && tg show <B-id> --json` (verify B's deps no longer contain A)
+- [x] Extension fields: `tg add "Test" --set x-meta.key=42 && tg show <id> --json` shows `"x-meta": {"key": 42}`
+- [x] Cycle detection: `tg add "A" && tg add "B" --dep <A-id> && tg edit <A-id> --add-dep <B-id>` exits 1 with cycle error
+- [x] Per-command JSON schema validation: each command's `--json` output checked for required fields (id format, status enum, timestamps as ISO 8601, null fields present, extension fields preserved)
 
 **Commit:** `[TG-001][P2] Feature: Core CRUD commands — add, list, show, edit, rm`
 
@@ -271,6 +271,10 @@ The dot-path extension mutation is one of the highest-complexity areas. Implemen
 For `tg list --status done`, full archive deserialization is needed (not just IDs). This uses `Store::load_all_archive()` defined in Phase 1.
 
 **Followups:**
+
+- `load_archive_ids()` fully deserializes all archive items to extract IDs. For large archives, consider a lightweight `IdOnly` struct or line-by-line ID extraction. Not a concern for v1 but noted for optimization if archive grows beyond ~10K items.
+- `tg edit` with no mutation flags still bumps `updated_at` and writes to disk. Consider requiring at least one mutation flag or detecting no-op edits to skip the write.
+- `description` field can only be set via `tg edit --description`, never cleared back to `null`. Consider supporting `--description ""` → `None` or adding `--clear-description`.
 
 ---
 
@@ -540,6 +544,7 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 | Phase | Status | Commit | Notes |
 |-------|--------|--------|-------|
 | 1 | complete | `[TG-001][P1]` | 37 unit tests + 6 integration tests + 2 lock PoC tests. Serde PoC passed. All verification items green. |
+| 2 | complete | `[TG-001][P2]` | 68 unit tests + 54 integration tests (122 total). All CRUD commands implemented with dot-path extensions, cycle detection, dependency validation. Code review passed — fixed status parsing, dep/tag deduplication. Clippy clean. |
 
 ## Followups Summary
 
