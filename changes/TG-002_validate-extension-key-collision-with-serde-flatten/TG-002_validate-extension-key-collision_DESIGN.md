@@ -1,7 +1,7 @@
 # Design: Validate Extension Key Collision with serde(flatten)
 
 **ID:** TG-002
-**Status:** Initial
+**Status:** Complete
 **Created:** 2026-02-24
 **PRD:** ./TG-002_validate-extension-key-collision_PRD.md
 **Tech Research:** ./TG-002_validate-extension-key-collision_TECH_RESEARCH.md
@@ -47,7 +47,7 @@ This is a validation addition, not a new architectural component. The change int
 
 **Value:** `["id", "title", "status", "priority", "description", "tags", "dependencies", "created_at", "updated_at", "blocked_reason", "blocked_from_status", "claimed_by", "claimed_at"]`
 
-**Location:** `src/model/item.rs`, as `const KNOWN_FIELD_NAMES: &[&str]` inside the `impl Item` block (or module-level).
+**Location:** `src/model/item.rs`, as a module-level `const KNOWN_FIELD_NAMES: &[&str]` above the `impl Item` block. Module-level makes it accessible to both the validation method and the drift test without visibility complications.
 
 #### `Item::validate_extensions()`
 
@@ -67,7 +67,9 @@ for each key in self.extensions:
 return Ok(())
 ```
 
-**Check ordering rationale:** Known-field collision is checked first because it produces a more specific error message. In practice, the two checks are disjoint — no known field name starts with `x-` — so a key can only fail one check. The ordering is a code clarity choice, not a behavioral one.
+**Check ordering rationale:** Since no known field name starts with `x-`, the two checks are mutually exclusive — a key can only fail one check, never both. We check known-field collision first so the more specific error message appears first in the code, improving readability. The ordering has no behavioral impact.
+
+**Scope limitation:** This method validates keys that are _in_ the extensions map. During deserialization, `serde(flatten)` routes known field names to their struct fields, so a JSON-level collision (e.g., a duplicate `"status"` key in the JSON) never reaches the extensions map. The known-field collision check therefore catches programmatic construction errors (code inserting `"status"` into extensions directly), not JSON-level duplicates. This is by design — the `x-` prefix check is the primary guard, and the collision check is defense-in-depth for programmatic use.
 
 **Error type:** `TgError::StorageCorruption` because validation failures indicate data integrity issues in the stored JSONL, not user input errors. This is consistent with how `read_active` handles malformed lines.
 
@@ -77,13 +79,13 @@ return Ok(())
 
 **Location:** After `serde_json::from_str::<Item>(&line)` succeeds (line ~53 in `jsonl.rs`).
 
-**Behavior:** Call `item.validate_extensions()`. On error, return `Err(TgError::StorageCorruption(...))` with a message that includes the line number, consistent with existing malformed-line error handling.
+**Behavior:** Call `item.validate_extensions()`. On error, wrap the validation error message with the line number using the same pattern as existing malformed-line errors: `TgError::StorageCorruption(format!("Invalid extensions on line {}: {}", i + 2, e))`. The `validate_extensions()` method itself returns errors without line numbers — the call site adds the context.
 
 #### Integration in `jsonl::read_archive()`
 
 **Location:** After `serde_json::from_str::<Item>(&line)` succeeds (line ~105 in `jsonl.rs`).
 
-**Behavior:** Call `item.validate_extensions()`. On error, `eprintln!` a warning including the line number, then `continue` (skip the item). This is consistent with how archive handles malformed lines.
+**Behavior:** Call `item.validate_extensions()`. On error, `eprintln!` a warning with the line number following the existing archive warning pattern: `"Warning: skipping archive item with invalid extensions on line {}: {}"`, then `continue` (skip the item). As with `read_active`, the validation method returns the error without line numbers and the call site adds context.
 
 ### Data Flow
 
@@ -107,6 +109,7 @@ return Ok(())
 **Edge cases:**
 - Item with no extensions — `validate_extensions()` iterates empty map, returns `Ok(())`
 - Item with only valid `x-`-prefixed extensions — passes validation
+- Item with multiple invalid keys — validation returns on the first invalid key (fail-fast); user fixes one, reloads, sees the next
 
 #### Flow: Archive store loads file with invalid extension key
 
@@ -152,6 +155,16 @@ return Ok(())
 **Rationale:** No proc-macro dependency needed. Serialize-and-compare is the standard approach (tech research Pattern 4). The drift test catches field additions/removals at test time. No `#[serde(rename)]` attributes are used on Item, so field names match struct field names.
 
 **Consequences:** If a developer adds a field to Item and forgets to update `KNOWN_FIELD_NAMES`, the drift test fails. Not compile-time, but sufficient for a project of this size.
+
+#### Decision: Read-path only — no write-path validation
+
+**Context:** The PRD's "Desired Outcome" mentions validation "before serialization or at construction time." Should we add `validate_extensions()` calls in the write path?
+
+**Decision:** No write-path validation in this change. Read-path only.
+
+**Rationale:** The CLI write path already enforces `x-` prefix via `apply_sets()` in both `add` and `edit` commands. There are no programmatic write paths outside the CLI today. Adding write-path validation would be defense-in-depth but is not required by the PRD's Must Have criteria. The PRD's Out of Scope section explicitly lists "Pre-serialization validation hooks."
+
+**Consequences:** If future code constructs Items with invalid extensions and writes them directly (bypassing the CLI), the invalid data would only be caught on the next read. Acceptable risk given no such code path exists today. Can be added as a follow-up if programmatic Item construction becomes a pattern.
 
 ### Tradeoffs Accepted
 
@@ -238,6 +251,5 @@ Before moving to SPEC:
 ## Assumptions
 
 - **Autonomous design**: Created without human interview. Light mode chosen given small size and low complexity.
-- **`StorageCorruption` over `InvalidInput`**: Post-deser validation failures indicate stored data issues, not user input. This matches existing `read_active` error handling and gives exit code 2.
-- **Module-level or impl-block constant**: `KNOWN_FIELD_NAMES` placement is a minor code organization choice; either works. Placing it in the `impl Item` block keeps it close to the validation method.
-- **No `validate_extensions` call in write paths**: The CLI write path already enforces `x-` via `apply_sets`. Adding validation before serialization would be defense-in-depth but is not required by the PRD's must-have criteria. Can be added as a follow-up if needed.
+- **`StorageCorruption` over `InvalidInput`**: Post-deser validation failures indicate stored data issues, not user input. This matches existing `read_active` error handling and gives exit code 2. Documented in Technical Decisions.
+- **Read-path only**: No write-path validation in this change. Documented in Technical Decisions.
