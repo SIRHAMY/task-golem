@@ -6,6 +6,27 @@ use serde::{Deserialize, Serialize, Serializer};
 use super::status::Status;
 use crate::errors::TgError;
 
+/// All serialized field names of the `Item` struct.
+/// Used by `validate_extensions()` to detect collisions with `serde(flatten)` keys.
+/// Note: "extensions" is NOT included — `serde(flatten)` merges map contents into
+/// the parent object rather than serializing a key called "extensions".
+#[allow(dead_code)] // Used in Phase 2 (store integration)
+const KNOWN_FIELD_NAMES: &[&str] = &[
+    "id",
+    "title",
+    "status",
+    "priority",
+    "description",
+    "tags",
+    "dependencies",
+    "created_at",
+    "updated_at",
+    "blocked_reason",
+    "blocked_from_status",
+    "claimed_by",
+    "claimed_at",
+];
+
 /// Serialize Option<T> so that None becomes JSON null (not omitted).
 fn serialize_option_nullable<S, T>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -58,6 +79,26 @@ impl Item {
         }
         if title.trim().is_empty() {
             return Err(TgError::InvalidInput("Title cannot be empty".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Validate that all extension keys start with `x-` and don't collide with known field names.
+    #[allow(dead_code)] // Used in Phase 2 (store integration)
+    pub fn validate_extensions(&self) -> Result<(), TgError> {
+        for key in self.extensions.keys() {
+            if KNOWN_FIELD_NAMES.contains(&key.as_str()) {
+                return Err(TgError::StorageCorruption(format!(
+                    "Extension key '{}' collides with a known Item field name.",
+                    key
+                )));
+            }
+            if !key.starts_with("x-") {
+                return Err(TgError::StorageCorruption(format!(
+                    "Extension key '{}' must start with 'x-' prefix. Rename to 'x-{}' or remove it.",
+                    key, key
+                )));
+            }
         }
         Ok(())
     }
@@ -369,5 +410,112 @@ mod tests {
         assert_eq!(item.status, Status::Todo);
         assert!(item.claimed_by.is_none());
         assert!(item.claimed_at.is_none());
+    }
+
+    // === validate_extensions tests ===
+
+    #[test]
+    fn validate_extensions_valid_x_prefix_keys() {
+        let item = make_test_item(); // has x-agent and x-priority-label
+        assert!(item.validate_extensions().is_ok());
+    }
+
+    #[test]
+    fn validate_extensions_empty_extensions() {
+        let mut item = make_test_item();
+        item.extensions = BTreeMap::new();
+        assert!(item.validate_extensions().is_ok());
+    }
+
+    #[test]
+    fn validate_extensions_rejects_non_x_prefix_key() {
+        let mut item = make_test_item();
+        item.extensions
+            .insert("bogus".to_string(), serde_json::json!("val"));
+        let err = item.validate_extensions().unwrap_err();
+        assert!(
+            matches!(err, TgError::StorageCorruption(_)),
+            "Expected StorageCorruption, got: {:?}",
+            err
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("must start with 'x-' prefix"), "msg: {}", msg);
+        assert!(msg.contains("bogus"), "msg: {}", msg);
+    }
+
+    #[test]
+    fn validate_extensions_rejects_known_field_name() {
+        let mut item = make_test_item();
+        item.extensions
+            .insert("status".to_string(), serde_json::json!("bad"));
+        let err = item.validate_extensions().unwrap_err();
+        assert!(
+            matches!(err, TgError::StorageCorruption(_)),
+            "Expected StorageCorruption, got: {:?}",
+            err
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("collides with a known Item field name"),
+            "msg: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn validate_extensions_fails_on_first_invalid_key() {
+        let mut item = make_test_item();
+        item.extensions.clear();
+        // BTreeMap orders alphabetically: "aaa-bad" before "zzz-bad"
+        item.extensions
+            .insert("aaa-bad".to_string(), serde_json::json!(1));
+        item.extensions
+            .insert("zzz-bad".to_string(), serde_json::json!(2));
+        let err = item.validate_extensions().unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("aaa-bad"), "Should fail on first key: {}", msg);
+        assert!(
+            !msg.contains("zzz-bad"),
+            "Should not mention second key: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn known_fields_match_serialized_item() {
+        let now = DateTime::parse_from_rfc3339("2026-02-24T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let item = Item {
+            id: "tg-test1".to_string(),
+            title: "Test".to_string(),
+            status: Status::Todo,
+            priority: 0,
+            description: None,
+            tags: vec![],
+            dependencies: vec![],
+            created_at: now,
+            updated_at: now,
+            blocked_reason: None,
+            blocked_from_status: None,
+            claimed_by: None,
+            claimed_at: None,
+            extensions: BTreeMap::new(),
+        };
+
+        let value = serde_json::to_value(&item).unwrap();
+        let obj = value.as_object().unwrap();
+        let mut serialized_keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+        serialized_keys.sort();
+
+        let mut known: Vec<&str> = KNOWN_FIELD_NAMES.to_vec();
+        known.sort();
+
+        assert_eq!(
+            serialized_keys, known,
+            "KNOWN_FIELD_NAMES must match serialized Item keys.\nSerialized: {:?}\nKnown: {:?}",
+            serialized_keys, known
+        );
     }
 }

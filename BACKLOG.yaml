@@ -3,7 +3,7 @@ items:
 - id: TG-002
   title: Validate extension key collision with serde(flatten)
   status: in_progress
-  phase: spec
+  phase: build
   size: small
   complexity: low
   risk: low
@@ -11,10 +11,10 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:05:35.153540236+00:00
-  updated: 2026-02-25T02:11:54.783697399+00:00
+  updated: 2026-02-25T02:17:26.954845164+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: b2e73549680bcbc61d7b74802ef2c6050019ccfd
+  last_phase_commit: 7eac8cfeeaa3ae06684a24c5b349b181188db2ce
 - id: TG-003
   title: 'Update CLAUDE.md: YAML → JSONL backing store'
   status: done

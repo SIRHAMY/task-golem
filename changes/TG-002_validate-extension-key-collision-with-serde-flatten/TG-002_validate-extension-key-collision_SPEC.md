@@ -52,7 +52,7 @@ No new dependencies, files, or error variants are needed. All changes are additi
 
 > Add KNOWN_FIELD_NAMES constant and validate_extensions() method with unit tests
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Low
 
@@ -69,21 +69,21 @@ No new dependencies, files, or error variants are needed. All changes are additi
 
 **Tasks:**
 
-- [ ] Add `const KNOWN_FIELD_NAMES: &[&str]` at module level (above `impl Item`), listing all 13 serialized field names: `id`, `title`, `status`, `priority`, `description`, `tags`, `dependencies`, `created_at`, `updated_at`, `blocked_reason`, `blocked_from_status`, `claimed_by`, `claimed_at`. Note: the `extensions` field is NOT included — `serde(flatten)` never serializes it as a key called "extensions"; it merges the map's contents into the parent object.
-- [ ] Add `pub fn validate_extensions(&self) -> Result<(), TgError>` to `impl Item` that iterates `self.extensions` keys, checks known-field collision first (returns `StorageCorruption("Extension key '{key}' collides with a known Item field name.")`), then checks `x-` prefix (returns `StorageCorruption("Extension key '{key}' must start with 'x-' prefix. Rename to 'x-{key}' or remove it.")`)
-- [ ] Add test: `validate_extensions_valid_x_prefix_keys` — item with `x-`-prefixed keys passes. Assert `is_ok()`.
-- [ ] Add test: `validate_extensions_empty_extensions` — item with empty extensions passes. Assert `is_ok()`.
-- [ ] Add test: `validate_extensions_rejects_non_x_prefix_key` — key `"bogus"` returns error. Assert `matches!(err, TgError::StorageCorruption(_))` and error message contains `"must start with 'x-' prefix"` and the key name `"bogus"`.
-- [ ] Add test: `validate_extensions_rejects_known_field_name` — key `"status"` returns error. Assert `matches!(err, TgError::StorageCorruption(_))` and error message contains `"collides with a known Item field name"`.
-- [ ] Add test: `validate_extensions_fails_on_first_invalid_key` — item with two invalid keys (e.g., `"aaa-bad"` and `"zzz-bad"` — BTreeMap orders alphabetically) returns error mentioning only `"aaa-bad"`, confirming fail-fast behavior.
-- [ ] Add test: `known_fields_match_serialized_item` — serialize an Item with empty extensions to `serde_json::Value`, extract the JSON object's keys, collect into a sorted `Vec`, and assert it matches a sorted copy of `KNOWN_FIELD_NAMES`. Use order-independent comparison (sort both sides or use `BTreeSet`) since JSON key order is not guaranteed to match the constant's declaration order.
+- [x] Add `const KNOWN_FIELD_NAMES: &[&str]` at module level (above `impl Item`), listing all 13 serialized field names: `id`, `title`, `status`, `priority`, `description`, `tags`, `dependencies`, `created_at`, `updated_at`, `blocked_reason`, `blocked_from_status`, `claimed_by`, `claimed_at`. Note: the `extensions` field is NOT included — `serde(flatten)` never serializes it as a key called "extensions"; it merges the map's contents into the parent object.
+- [x] Add `pub fn validate_extensions(&self) -> Result<(), TgError>` to `impl Item` that iterates `self.extensions` keys, checks known-field collision first (returns `StorageCorruption("Extension key '{key}' collides with a known Item field name.")`), then checks `x-` prefix (returns `StorageCorruption("Extension key '{key}' must start with 'x-' prefix. Rename to 'x-{key}' or remove it.")`)
+- [x] Add test: `validate_extensions_valid_x_prefix_keys` — item with `x-`-prefixed keys passes. Assert `is_ok()`.
+- [x] Add test: `validate_extensions_empty_extensions` — item with empty extensions passes. Assert `is_ok()`.
+- [x] Add test: `validate_extensions_rejects_non_x_prefix_key` — key `"bogus"` returns error. Assert `matches!(err, TgError::StorageCorruption(_))` and error message contains `"must start with 'x-' prefix"` and the key name `"bogus"`.
+- [x] Add test: `validate_extensions_rejects_known_field_name` — key `"status"` returns error. Assert `matches!(err, TgError::StorageCorruption(_))` and error message contains `"collides with a known Item field name"`.
+- [x] Add test: `validate_extensions_fails_on_first_invalid_key` — item with two invalid keys (e.g., `"aaa-bad"` and `"zzz-bad"` — BTreeMap orders alphabetically) returns error mentioning only `"aaa-bad"`, confirming fail-fast behavior.
+- [x] Add test: `known_fields_match_serialized_item` — serialize an Item with empty extensions to `serde_json::Value`, extract the JSON object's keys, collect into a sorted `Vec`, and assert it matches a sorted copy of `KNOWN_FIELD_NAMES`. Use order-independent comparison (sort both sides or use `BTreeSet`) since JSON key order is not guaranteed to match the constant's declaration order.
 
 **Verification:**
 
-- [ ] All 7 new unit tests pass
-- [ ] Existing `item.rs` tests still pass (no regressions)
-- [ ] `cargo build` succeeds
-- [ ] Code review passes (`/code-review` → fix issues → repeat until pass)
+- [x] All 7 new unit tests pass
+- [x] Existing `item.rs` tests still pass (no regressions)
+- [x] `cargo build` succeeds
+- [x] Code review passes (`/code-review` → fix issues → repeat until pass)
 
 **Commit:** `[TG-002][P1] Feature: Add validate_extensions() method and KNOWN_FIELD_NAMES constant`
 
@@ -93,6 +93,7 @@ No new dependencies, files, or error variants are needed. All changes are additi
 - The method is fail-fast: returns on the first invalid key. This is consistent with existing error patterns. The PRD uses singular "the offending key" in error message descriptions, supporting this approach.
 - The drift test should use an Item with empty extensions and serialize to `serde_json::Value`, then compare the `as_object()` keys against `KNOWN_FIELD_NAMES`. Use order-independent comparison (sort both sides) since serde's output key ordering may differ from the constant's declaration order.
 - The `extensions` field must NOT appear in `KNOWN_FIELD_NAMES` because `serde(flatten)` merges the map's contents into the parent JSON object rather than serializing it as a nested key.
+- Both `KNOWN_FIELD_NAMES` and `validate_extensions()` are marked `#[allow(dead_code)]` until Phase 2 wires them into the store layer.
 
 **Followups:**
 
@@ -167,6 +168,7 @@ No new dependencies, files, or error variants are needed. All changes are additi
 
 | Phase | Status | Commit | Notes |
 |-------|--------|--------|-------|
+| 1 — Core Validation | complete | `[TG-002][P1] Feature: Add validate_extensions() method and KNOWN_FIELD_NAMES constant` | All 7 tests pass, clippy clean, code review passed |
 
 ## Followups Summary
 
