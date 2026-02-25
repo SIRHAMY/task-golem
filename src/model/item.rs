@@ -10,7 +10,6 @@ use crate::errors::TgError;
 /// Used by `validate_extensions()` to detect collisions with `serde(flatten)` keys.
 /// Note: "extensions" is NOT included — `serde(flatten)` merges map contents into
 /// the parent object rather than serializing a key called "extensions".
-#[allow(dead_code)] // Used in Phase 2 (store integration)
 const KNOWN_FIELD_NAMES: &[&str] = &[
     "id",
     "title",
@@ -84,7 +83,6 @@ impl Item {
     }
 
     /// Validate that all extension keys start with `x-` and don't collide with known field names.
-    #[allow(dead_code)] // Used in Phase 2 (store integration)
     pub fn validate_extensions(&self) -> Result<(), TgError> {
         for key in self.extensions.keys() {
             if KNOWN_FIELD_NAMES.contains(&key.as_str()) {

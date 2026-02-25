@@ -51,6 +51,12 @@ pub fn read_active(path: &Path) -> Result<Vec<Item>, TgError> {
         let item: Item = serde_json::from_str(&line).map_err(|e| {
             TgError::StorageCorruption(format!("Malformed item on line {}: {}", i + 2, e))
         })?;
+        item.validate_extensions().map_err(|e| match e {
+            TgError::StorageCorruption(msg) => {
+                TgError::StorageCorruption(format!("Invalid extensions on line {}: {}", i + 2, msg))
+            }
+            other => other,
+        })?;
         items.push(item);
     }
 
@@ -102,7 +108,23 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
             continue;
         }
         match serde_json::from_str::<Item>(&line) {
-            Ok(item) => items.push(item),
+            Ok(item) => match item.validate_extensions() {
+                Ok(()) => items.push(item),
+                Err(TgError::StorageCorruption(msg)) => {
+                    eprintln!(
+                        "Warning: skipping archive item with invalid extensions on line {}: {}",
+                        i + 2,
+                        msg
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Warning: skipping archive item on line {}: {}",
+                        i + 2,
+                        e
+                    );
+                }
+            },
             Err(e) => {
                 eprintln!(
                     "Warning: skipping malformed archive line {}: {}",
@@ -371,5 +393,75 @@ mod tests {
         let path = tmp.path().join("nonexistent.jsonl");
         let items = read_active(&path).unwrap();
         assert!(items.is_empty());
+    }
+
+    #[test]
+    fn active_invalid_extension_key_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("tasks.jsonl");
+
+        let item = make_item("tg-aaa00", "Good item");
+        let mut json: serde_json::Value = serde_json::to_value(&item).unwrap();
+        json.as_object_mut()
+            .unwrap()
+            .insert("bogus".to_string(), serde_json::json!("bad"));
+        let line = serde_json::to_string(&json).unwrap();
+        let content = format!("{{\"schema_version\":1}}\n{}\n", line);
+        fs::write(&path, content).unwrap();
+
+        let result = read_active(&path);
+        match result {
+            Err(TgError::StorageCorruption(msg)) => {
+                assert!(msg.contains("line 2"), "Should mention line 2: {}", msg);
+                assert!(
+                    msg.contains("must start with 'x-' prefix"),
+                    "Should mention x- prefix: {}",
+                    msg
+                );
+            }
+            other => panic!("Expected StorageCorruption, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn archive_invalid_extension_key_skipped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("archive.jsonl");
+
+        let good_item = make_item("tg-aaa00", "Good item");
+        let good_line = serde_json::to_string(&good_item).unwrap();
+
+        let bad_item = make_item("tg-bbb00", "Bad item");
+        let mut bad_json: serde_json::Value = serde_json::to_value(&bad_item).unwrap();
+        bad_json
+            .as_object_mut()
+            .unwrap()
+            .insert("bogus".to_string(), serde_json::json!("bad"));
+        let bad_line = serde_json::to_string(&bad_json).unwrap();
+
+        let content = format!("{{\"schema_version\":1}}\n{}\n{}\n", good_line, bad_line);
+        fs::write(&path, content).unwrap();
+
+        let items = read_archive(&path).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, "tg-aaa00");
+    }
+
+    #[test]
+    fn active_valid_extensions_pass() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("tasks.jsonl");
+
+        let mut item = make_item("tg-aaa00", "Item with extensions");
+        item.extensions
+            .insert("x-custom".to_string(), serde_json::json!("value"));
+        item.extensions
+            .insert("x-meta".to_string(), serde_json::json!({"key": "val"}));
+
+        write_atomic(&path, &[item]).unwrap();
+        let loaded = read_active(&path).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "tg-aaa00");
+        assert_eq!(loaded[0].extensions.len(), 2);
     }
 }

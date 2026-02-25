@@ -103,7 +103,7 @@ No new dependencies, files, or error variants are needed. All changes are additi
 
 > Wire validation into read_active() and read_archive() with integration tests
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Low
 
@@ -121,18 +121,18 @@ No new dependencies, files, or error variants are needed. All changes are additi
 
 **Tasks:**
 
-- [ ] In `read_active()`: after `serde_json::from_str::<Item>(&line)` succeeds (line 53), call `item.validate_extensions()` before `items.push(item)`. On error, extract the inner message string (match on `TgError::StorageCorruption(msg)`) and re-wrap with line context: `TgError::StorageCorruption(format!("Invalid extensions on line {}: {}", i + 2, msg))`. This avoids double-nesting the "Storage corruption:" prefix that `TgError`'s `Display` impl would add. Use `map_err` with a closure that destructures the error.
-- [ ] In `read_archive()`: expand the `Ok(item)` arm (line 105) into a block. Call `item.validate_extensions()`. On `Ok(())`, push the item. On `Err(e)`, extract the inner message (match on the error variant), print `eprintln!("Warning: skipping archive item with invalid extensions on line {}: {}", i + 2, msg)` and `continue`. Same double-wrap avoidance as `read_active`.
-- [ ] Add test: `active_invalid_extension_key_fails` — write JSONL with a non-`x-` extension key, assert `read_active()` returns `StorageCorruption` with line number
-- [ ] Add test: `archive_invalid_extension_key_skipped` — write JSONL with one good item and one with a non-`x-` extension key, assert `read_archive()` returns only the good item
-- [ ] Add test: `active_valid_extensions_pass` — write JSONL with valid `x-`-prefixed extension keys, assert `read_active()` loads all items successfully
+- [x] In `read_active()`: after `serde_json::from_str::<Item>(&line)` succeeds (line 53), call `item.validate_extensions()` before `items.push(item)`. On error, extract the inner message string (match on `TgError::StorageCorruption(msg)`) and re-wrap with line context: `TgError::StorageCorruption(format!("Invalid extensions on line {}: {}", i + 2, msg))`. This avoids double-nesting the "Storage corruption:" prefix that `TgError`'s `Display` impl would add. Use `map_err` with a closure that destructures the error.
+- [x] In `read_archive()`: expand the `Ok(item)` arm (line 105) into a block. Call `item.validate_extensions()`. On `Ok(())`, push the item. On `Err(e)`, extract the inner message (match on the error variant), print `eprintln!("Warning: skipping archive item with invalid extensions on line {}: {}", i + 2, msg)` and `continue`. Same double-wrap avoidance as `read_active`.
+- [x] Add test: `active_invalid_extension_key_fails` — write JSONL with a non-`x-` extension key, assert `read_active()` returns `StorageCorruption` with line number
+- [x] Add test: `archive_invalid_extension_key_skipped` — write JSONL with one good item and one with a non-`x-` extension key, assert `read_archive()` returns only the good item
+- [x] Add test: `active_valid_extensions_pass` — write JSONL with valid `x-`-prefixed extension keys, assert `read_active()` loads all items successfully
 
 **Verification:**
 
-- [ ] All 3 new integration tests pass
-- [ ] Existing `jsonl.rs` tests still pass (no regressions)
-- [ ] Full test suite passes: `cargo test`
-- [ ] Code review passes (`/code-review` → fix issues → repeat until pass)
+- [x] All 3 new integration tests pass
+- [x] Existing `jsonl.rs` tests still pass (no regressions)
+- [x] Full test suite passes: `cargo test`
+- [x] Code review passes (`/code-review` → fix issues → repeat until pass)
 
 **Commit:** `[TG-002][P2] Feature: Integrate extension validation in read_active and read_archive`
 
@@ -149,26 +149,27 @@ No new dependencies, files, or error variants are needed. All changes are additi
 
 ## Final Verification
 
-- [ ] All phases complete
-- [ ] All PRD success criteria met:
-  - [ ] `validate_extensions()` rejects non-`x-` keys
-  - [ ] Error messages name the offending key and suggest a fix
-  - [ ] Collision with known field names is rejected
-  - [ ] `read_active()` treats validation failure as hard error
-  - [ ] `read_archive()` skips invalid items with warning
-  - [ ] Existing valid JSONL files load without error
-  - [ ] Unit tests cover all specified scenarios
-  - [ ] Drift test prevents `KNOWN_FIELD_NAMES` from going stale
-- [ ] Tests pass (`cargo test`)
-- [ ] No clippy warnings (`cargo clippy -- -D warnings`)
-- [ ] No regressions introduced
-- [ ] Code reviewed (if applicable)
+- [x] All phases complete
+- [x] All PRD success criteria met:
+  - [x] `validate_extensions()` rejects non-`x-` keys
+  - [x] Error messages name the offending key and suggest a fix
+  - [x] Collision with known field names is rejected
+  - [x] `read_active()` treats validation failure as hard error
+  - [x] `read_archive()` skips invalid items with warning
+  - [x] Existing valid JSONL files load without error
+  - [x] Unit tests cover all specified scenarios
+  - [x] Drift test prevents `KNOWN_FIELD_NAMES` from going stale
+- [x] Tests pass (`cargo test`)
+- [x] No clippy warnings (`cargo clippy -- -D warnings`)
+- [x] No regressions introduced
+- [x] Code reviewed (if applicable)
 
 ## Execution Log
 
 | Phase | Status | Commit | Notes |
 |-------|--------|--------|-------|
 | 1 — Core Validation | complete | `[TG-002][P1] Feature: Add validate_extensions() method and KNOWN_FIELD_NAMES constant` | All 7 tests pass, clippy clean, code review passed |
+| 2 — Store Integration | complete | `[TG-002][P2] Feature: Integrate extension validation in read_active and read_archive` | All 3 new tests pass, 312 total tests pass, clippy clean, code review passed |
 
 ## Followups Summary
 
