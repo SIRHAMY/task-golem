@@ -35,14 +35,14 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
-  updated: 2026-02-25T02:01:23.377789519+00:00
+  updated: 2026-02-25T02:06:55.432989772+00:00
   pipeline_type: feature
   phase_pool: main
   last_phase_commit: 9b70cb1c2e53eb6846e8682896e949b70cbc4213
 - id: TG-005
   title: Add no-op detection to tg edit
   status: in_progress
-  phase: spec
+  phase: build
   size: small
   complexity: low
   risk: low
@@ -50,7 +50,7 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
-  updated: 2026-02-25T02:05:39.514565457+00:00
+  updated: 2026-02-25T02:05:39.528177694+00:00
   pipeline_type: feature
   phase_pool: main
   last_phase_commit: b82b317ccf4c06d59f3070facb8d424321021124

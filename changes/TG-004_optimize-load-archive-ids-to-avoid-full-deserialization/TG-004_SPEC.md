@@ -1,7 +1,7 @@
 # SPEC: Optimize load_archive_ids to Avoid Full Deserialization
 
 **ID:** TG-004
-**Status:** Draft
+**Status:** Ready
 **Created:** 2026-02-24
 **PRD:** ./TG-004_PRD.md
 **Execution Mode:** autonomous
@@ -54,7 +54,7 @@ The primary performance win comes from removing `#[serde(flatten)]` — without 
 
 **Files:**
 
-- `src/store/jsonl.rs` — modify — add `IdOnly` struct, `read_archive_ids()` function, `use std::collections::HashSet` import, and 9 unit tests
+- `src/store/jsonl.rs` — modify — add `IdOnly` struct, `read_archive_ids()` function with doc comment, `use std::collections::HashSet` import, and 10 unit tests
 - `src/store/mod.rs` — modify — rewire `load_archive_ids()` body to call `jsonl::read_archive_ids()` (single-line change)
 
 **Patterns:**
@@ -66,7 +66,7 @@ The primary performance win comes from removing `#[serde(flatten)]` — without 
 
 - [ ] Add `use std::collections::HashSet;` import to `src/store/jsonl.rs`
 - [ ] Add `IdOnly` struct (private, `#[derive(Deserialize)]`, single `id: String` field) with doc comment explaining the no-flatten invariant and referencing TG-004
-- [ ] Implement `read_archive_ids(path: &Path) -> Result<HashSet<String>, TgError>` mirroring `read_archive()` structure:
+- [ ] Implement `read_archive_ids(path: &Path) -> Result<HashSet<String>, TgError>` with doc comment (see Design doc for guidance) mirroring `read_archive()` structure:
   - Return empty `HashSet` if file doesn't exist
   - Open file, create BufReader, read lines iterator
   - Parse first line as `SchemaHeader`; return empty `HashSet` if file is empty
@@ -80,13 +80,14 @@ The primary performance win comes from removing `#[serde(flatten)]` — without 
 - [ ] Add unit test: truncated last line skipped, earlier valid lines included
 - [ ] Add unit test: schema version mismatch returns `TgError::SchemaVersionUnsupported`
 - [ ] Add unit test: valid `id` with corrupted other fields (e.g., `{"id":"tg-abc12","created_at":"INVALID","status":999}`) is included
-- [ ] Add unit test: missing `id` field (e.g., `{"title":"test"}`) is skipped
+- [ ] Add unit test: missing or non-string `id` field (e.g., `{"title":"test"}` and `{"id":123}`) is skipped
 - [ ] Add unit test: duplicate IDs deduplicated by `HashSet`
+- [ ] Add unit test: empty/whitespace-only lines between valid items are skipped without error
 
 **Verification:**
 
 - [ ] `cargo build` succeeds without errors or new warnings
-- [ ] `cargo test` passes — all existing tests + 9 new unit tests
+- [ ] `cargo test` passes — all existing tests + 10 new unit tests
 - [ ] `cargo clippy` passes without new warnings
 - [ ] `Store::load_archive_ids()` public API signature unchanged (`Result<HashSet<String>, TgError>`)
 - [ ] New `read_archive_ids()` handles: missing file (empty set), empty file (empty set), header-only (empty set), valid archive (all IDs), malformed lines (skipped with warning), schema version mismatch (error), corrupted non-id fields (included)
