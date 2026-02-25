@@ -27,7 +27,7 @@ items:
 - id: TG-004
   title: Optimize load_archive_ids to avoid full deserialization
   status: in_progress
-  phase: tech-research
+  phase: design
   size: small
   complexity: low
   risk: low
@@ -35,10 +35,10 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
-  updated: 2026-02-25T01:56:05.824259964+00:00
+  updated: 2026-02-25T01:56:05.848855022+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: e1d349acbf5782407da7212494ce272e8ad630c8
+  last_phase_commit: 575938abc55c1426b87d8fd672d16863bd93a574
 - id: TG-005
   title: Add no-op detection to tg edit
   status: in_progress
@@ -50,7 +50,7 @@ items:
   requires_human_review: false
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
-  updated: 2026-02-25T01:52:09.989367769+00:00
+  updated: 2026-02-25T01:57:00.956026018+00:00
   pipeline_type: feature
   phase_pool: main
   last_phase_commit: fbbd1de796cacfd58c3c4c77673441c8a3cc13b8
