@@ -575,9 +575,12 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 
 ### Critical
 
+(none)
+
 ### High
 
 - [ ] Update project `.claude/CLAUDE.md` to say "JSONL backing store" instead of "YAML backing store" — current text conflicts with the PRD and SPEC
+- [ ] `output::truncate()` uses byte-length slicing which can panic on multi-byte UTF-8 characters — switch to char-boundary-aware truncation (Phase 5; low probability but potential runtime crash in colored table output)
 
 ### Medium
 
@@ -585,11 +588,23 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 - [ ] `--project-dir` / `TG_PROJECT_DIR` environment variable to override root resolver — useful for CI/Docker/agent sandboxes where CWD may not be under the project root
 - [ ] `tg merge-resolve` command for JSONL git merge conflict resolution (PRD Nice-to-Have)
 - [ ] `tg watch --json` event stream (PRD Nice-to-Have, requires inotify or daemon)
+- [ ] `load_archive_ids()` fully deserializes all archive items — consider a lightweight `IdOnly` struct or line-by-line ID extraction for archives beyond ~10K items (Phase 2)
+- [ ] `tg edit` with no mutation flags still bumps `updated_at` and writes to disk — consider no-op detection to skip unnecessary writes (Phase 2)
+- [ ] `tg do --claim` on an already-Doing unclaimed item returns `InvalidTransition` — consider supporting retroactive claiming as a separate feature (Phase 3)
+- [ ] Stale doing items in `tg ready --include-stale` appended after ready (todo) items rather than globally sorted — consider interleaving for priority-ordered output (Phase 3)
+- [ ] `tg dump` reads active and archive without lock — could yield inconsistent snapshot across the two files during concurrent writes. Consider wrapping in `with_lock` for consistency (Phase 5)
+- [ ] `tg unblock` does not have idempotent handling like the other transition commands — add for consistency (Phase 5)
 
 ### Low
 
+- [ ] `#[serde(flatten)]` field-name collision: extension keys colliding with known Item field names (e.g., "id", "title") could cause unpredictable serde behavior — consider post-deserialization validation (Phase 1)
+- [ ] `description` field can only be set via `tg edit --description`, never cleared back to `null` — consider `--description ""` → `None` or `--clear-description` (Phase 2)
+- [ ] Mixed prefix detection in `tg doctor`: warn when active items have IDs with different prefixes (Phase 4)
+- [ ] Verbose support for write commands: thread `verbose` flag through `with_lock` callback to report lock timing and save operations (Phase 4)
+- [ ] `archive-pruned.jsonl` may accumulate duplicates if `tg archive --before` is run repeatedly — consider using `write_atomic` instead of append-per-item (Phase 5)
 - [ ] `tg do --force-claim <agent-id>` to override an existing claim without needing `tg todo` + `tg do` as two operations
 - [ ] Library crate API for tighter orchestrator integration (PRD defers to v1.1)
+- [ ] Update deprecated `assert_cmd::cargo::cargo_bin` calls to use `cargo::cargo_bin!` macro in test code
 
 ## Design Details
 

@@ -3,17 +3,17 @@ items:
 - id: TG-001
   title: Agent-native work tracker
   status: in_progress
-  phase: build
+  phase: review
   size: large
   complexity: high
   risk: low
   impact: high
   requires_human_review: false
   created: 2026-02-24T23:17:45.278322533+00:00
-  updated: 2026-02-25T01:04:49.134951735+00:00
+  updated: 2026-02-25T01:08:29.999127154+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: 56845c2bf8c9751dec9a2e2213b6ad87b421ff03
+  last_phase_commit: 28460e4ebb6f182f2265e4f141753a3f31124969
 - id: TG-002
   title: Validate extension key collision with serde(flatten)
   status: new
@@ -122,4 +122,40 @@ items:
   origin: TG-001/build
   created: 2026-02-25T01:04:49.135906422+00:00
   updated: 2026-02-25T01:04:49.135906422+00:00
-next_item_id: 13
+- id: TG-014
+  title: Fix UTF-8 truncation panic in colored table output
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/review
+  created: 2026-02-25T01:08:30.000497275+00:00
+  updated: 2026-02-25T01:08:30.000497275+00:00
+- id: TG-015
+  title: Update CLAUDE.md to reflect JSONL backing store
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/review
+  created: 2026-02-25T01:08:30.000497275+00:00
+  updated: 2026-02-25T01:08:30.000497275+00:00
+- id: TG-016
+  title: Add --project-dir / TG_PROJECT_DIR env var override
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/review
+  created: 2026-02-25T01:08:30.000497275+00:00
+  updated: 2026-02-25T01:08:30.000497275+00:00
+- id: TG-017
+  title: Implement tg merge-resolve for JSONL conflict resolution
+  status: new
+  size: medium
+  risk: low
+  requires_human_review: false
+  origin: TG-001/review
+  created: 2026-02-25T01:08:30.000497275+00:00
+  updated: 2026-02-25T01:08:30.000497275+00:00
+next_item_id: 17
