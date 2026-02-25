@@ -1,7 +1,7 @@
 # SPEC: Add No-Op Detection to `tg edit`
 
 **ID:** TG-005
-**Status:** Draft
+**Status:** Ready
 **Created:** 2026-02-24
 **PRD:** ./TG-005_add-no-op-detection-to-tg-edit_PRD.md
 **Execution Mode:** autonomous
@@ -71,14 +71,16 @@ Use derived `PartialEq` on `Item` to enable structural comparison. Add a local `
 - [ ] Insert comparison after the last mutation (`extensions::apply_sets`) but BEFORE `updated_at = Utc::now()`: `if items[item_idx] == snapshot { return Ok(EditResult::Unchanged { ... }); }`
 - [ ] Make `updated_at` bump, `save_active`, and item clone conditional on the "changed" branch, returning `EditResult::Applied(updated)`
 - [ ] Update output handling after the closure to match on `EditResult`: `Applied` prints the item (existing behavior), `Unchanged` prints `"No changes: <id> - <title>"` (human) or `{"idempotent": true}` (JSON)
+- [ ] Add inline comment at the comparison point: `// CRITICAL: Compare BEFORE updated_at bump — comparing after would always differ`
 
 **Verification:**
 
 - [ ] `cargo build` succeeds with no errors
 - [ ] `cargo test` passes (all existing tests still pass — no regressions)
-- [ ] Manual test: `tg edit <id>` with no flags produces no-op output and exit 0
-- [ ] Manual test: `tg edit <id> --title "New"` with a different title produces Applied output
-- [ ] Code review passes
+- [ ] Manual test: `tg edit <id>` with no flags → human output: `"No changes: <id> - <title>"`, JSON output: `{"idempotent": true}`, exit code 0
+- [ ] Manual test: `tg edit <id> --title "New"` with a different title → full item output with bumped `updated_at`, exit code 0
+- [ ] Manual test: `tg edit <id>` with no flags → verify `updated_at` timestamp is unchanged (compare `tg show` before and after)
+- [ ] Code review passes — verify comparison is placed after all mutations but before `updated_at = Utc::now()`
 
 **Commit:** `[TG-005][P1] Feature: Add no-op detection to tg edit`
 
@@ -112,10 +114,12 @@ Critical ordering: the comparison `items[item_idx] == snapshot` MUST happen AFTE
 **Tasks:**
 
 - [ ] Create `tests/edit_noop_test.rs` with `mod common;` and `use common::TestProject;`
-- [ ] Test: no-op with no mutation flags — `tg edit <id>` returns `{"idempotent": true}` in JSON mode and exit 0
+- [ ] Test: no-op with no mutation flags — `tg edit <id>` returns `{"idempotent": true}` in JSON mode, exit code 0
 - [ ] Test: no-op with same-value title — `tg edit <id> --title <same>` returns idempotent
 - [ ] Test: no-op with same-value priority — `tg edit <id> --priority <same>` returns idempotent
+- [ ] Test: no-op with same-value description — `tg edit <id> --description <same>` returns idempotent
 - [ ] Test: no-op with add-dep already present — `tg edit <id> --add-dep <existing>` returns idempotent
+- [ ] Test: no-op with rm-dep not present — `tg edit <id> --rm-dep <nonexistent>` returns idempotent
 - [ ] Test: no-op with add-tag already present — `tg edit <id> --add-tag <existing>` returns idempotent
 - [ ] Test: no-op with rm-tag not present — `tg edit <id> --rm-tag <nonexistent>` returns idempotent
 - [ ] Test: no-op with same extension value — `tg edit <id> --set x-key=<same>` returns idempotent
