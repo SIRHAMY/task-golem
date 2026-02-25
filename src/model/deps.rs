@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::errors::TgError;
 use crate::model::item::Item;
+use crate::model::status::Status;
 
 /// Check if adding `new_dep_id` as a dependency of `source_id` would create a cycle.
 /// Uses DFS from new_dep_id following dependency edges in active items only.
@@ -166,13 +167,64 @@ pub fn detect_all_cycles(items: &[Item]) -> Vec<Vec<String>> {
     found_cycles
 }
 
+/// Compute the ready queue: active todo items whose dependencies are all met.
+/// A dependency is met if it exists in the done_set (active done items + all archived IDs).
+/// Dependencies on IDs absent from both active and archive are unmet.
+/// Returns (ready_items, warnings) where warnings describe unmet deps on non-existent IDs.
+/// Ready items are sorted by priority desc, then created_at asc.
+pub fn compute_ready_queue(
+    active_items: &[Item],
+    archive_ids: &HashSet<String>,
+) -> (Vec<Item>, Vec<String>) {
+    // Build done set: active items with status Done + all archived IDs
+    let mut done_set: HashSet<&str> = archive_ids.iter().map(|s| s.as_str()).collect();
+    let active_ids: HashSet<&str> = active_items.iter().map(|i| i.id.as_str()).collect();
+
+    for item in active_items {
+        if item.status == Status::Done {
+            done_set.insert(&item.id);
+        }
+    }
+
+    let mut warnings = Vec::new();
+    let mut ready: Vec<Item> = active_items
+        .iter()
+        .filter(|item| {
+            if item.status != Status::Todo {
+                return false;
+            }
+            for dep in &item.dependencies {
+                if !done_set.contains(dep.as_str()) {
+                    // Dep is not done. Check if it even exists.
+                    if !active_ids.contains(dep.as_str()) && !archive_ids.contains(dep.as_str()) {
+                        warnings.push(format!(
+                            "Warning: item {} has unmet dependency '{}' (not found in active or archive)",
+                            item.id, dep
+                        ));
+                    }
+                    return false;
+                }
+            }
+            true
+        })
+        .cloned()
+        .collect();
+
+    // Sort by priority desc, then created_at asc
+    ready.sort_by(|a, b| {
+        b.priority
+            .cmp(&a.priority)
+            .then_with(|| a.created_at.cmp(&b.created_at))
+    });
+
+    (ready, warnings)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
     use std::collections::BTreeMap;
-
-    use crate::model::status::Status;
 
     fn make_item(id: &str, deps: Vec<&str>) -> Item {
         let now = Utc::now();

@@ -10,10 +10,10 @@ items:
   impact: high
   requires_human_review: false
   created: 2026-02-24T23:17:45.278322533+00:00
-  updated: 2026-02-25T00:18:59.835888384+00:00
+  updated: 2026-02-25T00:36:09.737879175+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: f3f462a67153f298b17e2ab6026877b201d61f68
+  last_phase_commit: 54e82d6609bbe304c6bef577a0d81e6a4ab7ee43
 - id: TG-002
   title: Validate extension key collision with serde(flatten)
   status: new
@@ -59,4 +59,22 @@ items:
   origin: TG-001/build
   created: 2026-02-25T00:18:59.836756581+00:00
   updated: 2026-02-25T00:18:59.836756581+00:00
-next_item_id: 6
+- id: TG-007
+  title: Support retroactive claiming of unclaimed Doing items
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:36:09.747118156+00:00
+  updated: 2026-02-25T00:36:09.747118156+00:00
+- id: TG-008
+  title: Global sort for stale items in ready queue
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:36:09.747118156+00:00
+  updated: 2026-02-25T00:36:09.747118156+00:00
+next_item_id: 8

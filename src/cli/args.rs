@@ -118,4 +118,53 @@ pub enum Commands {
         #[arg(long = "clear-deps")]
         clear_deps: bool,
     },
+
+    /// Start working on an item (todo → doing)
+    Do {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+
+        /// Claim this item for an agent/user
+        #[arg(long)]
+        claim: Option<String>,
+    },
+
+    /// Mark an item as done (todo/doing → done, archives item)
+    Done {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+    },
+
+    /// Return an item to todo (doing → todo)
+    Todo {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+    },
+
+    /// Block an item
+    Block {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+
+        /// Reason for blocking
+        #[arg(long)]
+        reason: Option<String>,
+    },
+
+    /// Unblock an item (restores previous status)
+    Unblock {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+    },
+
+    /// Show items ready to work on
+    Ready {
+        /// Include stale doing items older than duration (e.g., 4h, 30m)
+        #[arg(long = "include-stale")]
+        include_stale: Option<String>,
+
+        /// Limit number of results
+        #[arg(long)]
+        limit: Option<usize>,
+    },
 }

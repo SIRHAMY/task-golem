@@ -11,7 +11,6 @@ pub enum Status {
     Blocked,
 }
 
-#[allow(dead_code)] // Used in later phases
 impl Status {
     /// Returns true if transitioning from `self` to `to` is valid.
     ///

@@ -1,0 +1,73 @@
+use chrono::Utc;
+
+use crate::cli::output;
+use crate::errors::TgError;
+use crate::model::deps;
+use crate::model::item::Item;
+use crate::model::status::Status;
+use crate::store::root;
+use crate::store::Store;
+
+pub fn run(
+    json_mode: bool,
+    include_stale: Option<String>,
+    limit: Option<usize>,
+) -> Result<(), TgError> {
+    let project_dir = root::find_project_root_from_cwd()?;
+    let store = Store::new(project_dir);
+
+    // Read-only operation: no lock needed
+    let active_items = store.load_active()?;
+    let archive_ids = store.load_archive_ids()?;
+
+    let (mut ready, warnings) = deps::compute_ready_queue(&active_items, &archive_ids);
+
+    // Emit warnings from ready queue computation
+    for w in &warnings {
+        eprintln!("{}", w);
+    }
+
+    // Include stale doing items if requested
+    if let Some(ref stale_str) = include_stale {
+        let duration: std::time::Duration = stale_str.parse::<humantime::Duration>()
+            .map_err(|e| TgError::InvalidInput(format!("Invalid duration '{}': {}", stale_str, e)))?
+            .into();
+        let threshold = Utc::now() - chrono::Duration::from_std(duration)
+            .map_err(|e| TgError::InvalidInput(format!("Duration too large: {}", e)))?;
+
+        let mut stale_doing: Vec<Item> = active_items
+            .iter()
+            .filter(|item| item.status == Status::Doing && item.updated_at < threshold)
+            .cloned()
+            .collect();
+
+        // Sort stale items the same way
+        stale_doing.sort_by(|a, b| {
+            b.priority
+                .cmp(&a.priority)
+                .then_with(|| a.created_at.cmp(&b.created_at))
+        });
+
+        ready.extend(stale_doing);
+    }
+
+    // Apply limit
+    if let Some(n) = limit {
+        ready.truncate(n);
+    }
+
+    if json_mode {
+        output::print_json(&ready);
+    } else if ready.is_empty() {
+        output::print_human("No items ready");
+    } else {
+        for item in &ready {
+            output::print_human(&format!(
+                "{} [{}] (p:{}) {}",
+                item.id, item.status, item.priority, item.title
+            ));
+        }
+    }
+
+    Ok(())
+}

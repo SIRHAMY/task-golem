@@ -154,10 +154,29 @@ pub fn write_atomic(path: &Path, items: &[Item]) -> Result<(), TgError> {
 ///
 /// The archive file must already exist with a schema header (created by `tg init`).
 /// If the file is missing or empty, writes the schema header first.
-#[allow(dead_code)] // Used in Phase 3
+/// Handles crash recovery: if the file doesn't end with a newline (truncated write),
+/// prepends a newline so the new item starts on its own line.
 pub fn append_to_archive(path: &Path, item: &Item) -> Result<(), TgError> {
     // If the file doesn't exist or is empty, write schema header first
     let needs_header = !path.exists() || fs::metadata(path).map(|m| m.len() == 0).unwrap_or(true);
+
+    // Check if file ends with a newline (handles truncated writes from crashes).
+    // Seek to last byte instead of reading the entire file.
+    let needs_leading_newline = if !needs_header && path.exists() {
+        let len = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        if len > 0 {
+            use std::io::{Read as _, Seek, SeekFrom};
+            let mut f = fs::File::open(path).map_err(TgError::IoError)?;
+            f.seek(SeekFrom::End(-1)).map_err(TgError::IoError)?;
+            let mut buf = [0u8; 1];
+            f.read_exact(&mut buf).map_err(TgError::IoError)?;
+            buf[0] != b'\n'
+        } else {
+            false
+        }
+    } else {
+        false
+    };
 
     let mut file = fs::OpenOptions::new()
         .create(true)
@@ -168,6 +187,10 @@ pub fn append_to_archive(path: &Path, item: &Item) -> Result<(), TgError> {
     if needs_header {
         let header = serde_json::json!({"schema_version": CURRENT_SCHEMA_VERSION});
         writeln!(file, "{}", header).map_err(TgError::IoError)?;
+    }
+
+    if needs_leading_newline {
+        writeln!(file).map_err(TgError::IoError)?;
     }
 
     writeln!(file, "{}", serde_json::to_string(item).expect("Item serialization cannot fail")).map_err(TgError::IoError)?;

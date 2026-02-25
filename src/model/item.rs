@@ -49,7 +49,6 @@ pub struct Item {
     pub extensions: BTreeMap<String, serde_json::Value>,
 }
 
-#[allow(dead_code)] // Used in later phases
 impl Item {
     pub fn validate_title(title: &str) -> Result<(), TgError> {
         if title.contains('\n') || title.contains('\r') {
@@ -61,6 +60,55 @@ impl Item {
             return Err(TgError::InvalidInput("Title cannot be empty".to_string()));
         }
         Ok(())
+    }
+
+    /// Transition to Doing, optionally setting claim fields.
+    pub fn apply_do(&mut self, claim: Option<String>) {
+        let now = Utc::now();
+        self.status = Status::Doing;
+        if let Some(agent) = claim {
+            self.claimed_by = Some(agent);
+            self.claimed_at = Some(now);
+        }
+        self.updated_at = now;
+    }
+
+    /// Transition to Done, clearing claim fields.
+    pub fn apply_done(&mut self) {
+        self.status = Status::Done;
+        self.claimed_by = None;
+        self.claimed_at = None;
+        self.updated_at = Utc::now();
+    }
+
+    /// Transition to Blocked, storing current status for later restoration.
+    pub fn apply_block(&mut self, reason: Option<String>) {
+        let from_status = self.status;
+        self.blocked_from_status = Some(from_status);
+        self.status = Status::Blocked;
+        self.blocked_reason = reason;
+        // Clear claims if transitioning from Doing
+        if from_status == Status::Doing {
+            self.claimed_by = None;
+            self.claimed_at = None;
+        }
+        self.updated_at = Utc::now();
+    }
+
+    /// Restore status from blocked_from_status (default to Todo if missing).
+    pub fn apply_unblock(&mut self) {
+        self.status = self.blocked_from_status.unwrap_or(Status::Todo);
+        self.blocked_reason = None;
+        self.blocked_from_status = None;
+        self.updated_at = Utc::now();
+    }
+
+    /// Transition back to Todo, clearing claim fields.
+    pub fn apply_todo(&mut self) {
+        self.status = Status::Todo;
+        self.claimed_by = None;
+        self.claimed_at = None;
+        self.updated_at = Utc::now();
     }
 }
 
@@ -228,5 +276,98 @@ mod tests {
         let deserialized: Item = serde_json::from_str(&json1).unwrap();
         let json2 = serde_json::to_string(&deserialized).unwrap();
         assert_eq!(json1, json2);
+    }
+
+    // === apply_* method tests ===
+
+    #[test]
+    fn apply_do_without_claim() {
+        let mut item = make_test_item();
+        let before = item.updated_at;
+        item.apply_do(None);
+        assert_eq!(item.status, Status::Doing);
+        assert!(item.claimed_by.is_none());
+        assert!(item.claimed_at.is_none());
+        assert!(item.updated_at >= before);
+    }
+
+    #[test]
+    fn apply_do_with_claim() {
+        let mut item = make_test_item();
+        item.apply_do(Some("agent-1".to_string()));
+        assert_eq!(item.status, Status::Doing);
+        assert_eq!(item.claimed_by.as_deref(), Some("agent-1"));
+        assert!(item.claimed_at.is_some());
+        // claimed_at and updated_at should be the same instant
+        assert_eq!(item.claimed_at.unwrap(), item.updated_at);
+    }
+
+    #[test]
+    fn apply_done_clears_claims() {
+        let mut item = make_test_item();
+        item.apply_do(Some("agent-1".to_string()));
+        item.apply_done();
+        assert_eq!(item.status, Status::Done);
+        assert!(item.claimed_by.is_none());
+        assert!(item.claimed_at.is_none());
+    }
+
+    #[test]
+    fn apply_block_from_todo() {
+        let mut item = make_test_item();
+        item.apply_block(Some("waiting".to_string()));
+        assert_eq!(item.status, Status::Blocked);
+        assert_eq!(item.blocked_from_status, Some(Status::Todo));
+        assert_eq!(item.blocked_reason.as_deref(), Some("waiting"));
+        // No claims to clear from todo
+        assert!(item.claimed_by.is_none());
+    }
+
+    #[test]
+    fn apply_block_from_doing_clears_claims() {
+        let mut item = make_test_item();
+        item.apply_do(Some("agent-1".to_string()));
+        assert!(item.claimed_by.is_some());
+
+        item.apply_block(Some("blocker".to_string()));
+        assert_eq!(item.status, Status::Blocked);
+        assert_eq!(item.blocked_from_status, Some(Status::Doing));
+        assert!(item.claimed_by.is_none());
+        assert!(item.claimed_at.is_none());
+    }
+
+    #[test]
+    fn apply_unblock_restores_status() {
+        let mut item = make_test_item();
+        item.apply_do(None);
+        item.apply_block(None);
+        assert_eq!(item.blocked_from_status, Some(Status::Doing));
+
+        item.apply_unblock();
+        assert_eq!(item.status, Status::Doing);
+        assert!(item.blocked_reason.is_none());
+        assert!(item.blocked_from_status.is_none());
+    }
+
+    #[test]
+    fn apply_unblock_defaults_to_todo() {
+        let mut item = make_test_item();
+        item.status = Status::Blocked;
+        item.blocked_from_status = None; // Simulate corrupted data
+
+        item.apply_unblock();
+        assert_eq!(item.status, Status::Todo);
+    }
+
+    #[test]
+    fn apply_todo_clears_claims() {
+        let mut item = make_test_item();
+        item.apply_do(Some("agent-1".to_string()));
+        assert!(item.claimed_by.is_some());
+
+        item.apply_todo();
+        assert_eq!(item.status, Status::Todo);
+        assert!(item.claimed_by.is_none());
+        assert!(item.claimed_at.is_none());
     }
 }

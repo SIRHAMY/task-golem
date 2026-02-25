@@ -282,7 +282,7 @@ For `tg list --status done`, full archive deserialization is needed (not just ID
 
 > State transitions, claim semantics, archival, and ready-queue computation
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** High
 
@@ -305,52 +305,52 @@ For `tg list --status done`, full archive deserialization is needed (not just ID
 
 *Transition Logic:*
 
-- [ ] Add transition methods to Item in `src/model/item.rs`: `apply_do(claim: Option<String>)` — set status to Doing, optionally set claimed_by/claimed_at, update updated_at. `apply_done()` — set status to Done, clear claimed_by/claimed_at, update updated_at. `apply_block(reason: Option<String>)` — store current status in blocked_from_status, set status to Blocked, store reason, clear claims if from Doing, update updated_at. `apply_unblock()` — restore status from blocked_from_status (default to Todo if missing/None — defensive fallback), clear blocked_reason/blocked_from_status, update updated_at. `apply_todo()` — set status to Todo, clear claimed_by/claimed_at, update updated_at
-- [ ] Add clap args for `tg do`: positional ID, `--claim <agent-id>` (optional string)
-- [ ] Add clap args for `tg done`, `tg todo`: each takes positional ID
-- [ ] Add clap args for `tg block`: positional ID, `--reason` (optional string)
-- [ ] Add clap args for `tg unblock`: positional ID
-- [ ] Implement shared transition logic in `src/cli/commands/transition.rs`: find root, acquire lock, load active store, resolve ID (active-only scope), validate transition via `Status::can_transition_to()` (exit 1 if invalid — this includes blocked→blocked, which is rejected to prevent blocked_from_status corruption). For `tg do --claim`: check if already claimed by different agent (exit 1 with `TgError::AlreadyClaimed`), same agent re-claim updates claimed_at only, no `--claim` transitions without setting claim fields. Apply transition method. Save. Output updated item
+- [x] Add transition methods to Item in `src/model/item.rs`: `apply_do(claim: Option<String>)` — set status to Doing, optionally set claimed_by/claimed_at, update updated_at. `apply_done()` — set status to Done, clear claimed_by/claimed_at, update updated_at. `apply_block(reason: Option<String>)` — store current status in blocked_from_status, set status to Blocked, store reason, clear claims if from Doing, update updated_at. `apply_unblock()` — restore status from blocked_from_status (default to Todo if missing/None — defensive fallback), clear blocked_reason/blocked_from_status, update updated_at. `apply_todo()` — set status to Todo, clear claimed_by/claimed_at, update updated_at
+- [x] Add clap args for `tg do`: positional ID, `--claim <agent-id>` (optional string)
+- [x] Add clap args for `tg done`, `tg todo`: each takes positional ID
+- [x] Add clap args for `tg block`: positional ID, `--reason` (optional string)
+- [x] Add clap args for `tg unblock`: positional ID
+- [x] Implement shared transition logic in `src/cli/commands/transition.rs`: find root, acquire lock, load active store, resolve ID (active-only scope), validate transition via `Status::can_transition_to()` (exit 1 if invalid — this includes blocked→blocked, which is rejected to prevent blocked_from_status corruption). For `tg do --claim`: check if already claimed by different agent (exit 1 with `TgError::AlreadyClaimed`), same agent re-claim updates claimed_at only, no `--claim` transitions without setting claim fields. Apply transition method. Save. Output updated item
 
 *Archival:*
 
-- [ ] Implement `tg done` archival: after applying the done transition, append the item (with status=done) to archive.jsonl via `Store::append_to_archive()` + fsync. If archive append fails: exit 2, item unchanged in active store. Then rewrite active store without the item. If active rewrite fails after archive append: exit 2 (item in both stores — benign duplicate, cross-phase dependency: detectable by `tg doctor` in Phase 4; no self-healing in Phase 3)
-- [ ] Ensure archive JSONL reader handles truncated last lines (implemented in Phase 1's `src/store/jsonl.rs`) — write a test that simulates crash mid-append: truncate archive.jsonl mid-line, then call `tg done` on another item and verify it succeeds (archive append adds a new valid line after the truncated one is skipped on read)
+- [x] Implement `tg done` archival: after applying the done transition, append the item (with status=done) to archive.jsonl via `Store::append_to_archive()` + fsync. If archive append fails: exit 2, item unchanged in active store. Then rewrite active store without the item. If active rewrite fails after archive append: exit 2 (item in both stores — benign duplicate, cross-phase dependency: detectable by `tg doctor` in Phase 4; no self-healing in Phase 3)
+- [x] Ensure archive JSONL reader handles truncated last lines (implemented in Phase 1's `src/store/jsonl.rs`) — write a test that simulates crash mid-append: truncate archive.jsonl mid-line, then call `tg done` on another item and verify it succeeds (archive append adds a new valid line after the truncated one is skipped on read)
 
 *Transition Tests:*
 
-- [ ] Write integration tests for transitions: every valid path (todo→doing, todo→done, todo→blocked, doing→done, doing→blocked, doing→todo), every invalid path (done→anything exits 1, blocked→doing exits 1, blocked→done exits 1, blocked→blocked exits 1), claim set on `tg do --claim`, claim cleared on done/block/todo, blocked_from_status stored and restored correctly, `done` archives item (verify item is in archive.jsonl directly, not just via `tg show`), terminal done (cannot transition further)
-- [ ] Write dedicated `tg todo` test: create item, `tg do --claim agent-1`, `tg todo` — verify status is todo, claimed_by is null, claimed_at is null, updated_at changed
-- [ ] Write dedicated `todo→done` test (skip doing): create item, immediately `tg done` — verify item archived, no claim fields were set, appears in archive with status=done
-- [ ] Write `apply_unblock()` fallback test: inject item with blocked status but `blocked_from_status: null` (manually edit JSONL), call `tg unblock` — verify status defaults to todo
-- [ ] Write integration tests for claim semantics: agent-A claims, agent-B claim fails with exit 1, agent-A re-claims (updates claimed_at), do without claim works (no claim fields set), claimed_by/claimed_at visible in `tg list --json`
+- [x] Write integration tests for transitions: every valid path (todo→doing, todo→done, todo→blocked, doing→done, doing→blocked, doing→todo), every invalid path (done→anything exits 1, blocked→doing exits 1, blocked→done exits 1, blocked→blocked exits 1), claim set on `tg do --claim`, claim cleared on done/block/todo, blocked_from_status stored and restored correctly, `done` archives item (verify item is in archive.jsonl directly, not just via `tg show`), terminal done (cannot transition further)
+- [x] Write dedicated `tg todo` test: create item, `tg do --claim agent-1`, `tg todo` — verify status is todo, claimed_by is null, claimed_at is null, updated_at changed
+- [x] Write dedicated `todo→done` test (skip doing): create item, immediately `tg done` — verify item archived, no claim fields were set, appears in archive with status=done
+- [x] Write `apply_unblock()` fallback test: inject item with blocked status but `blocked_from_status: null` (manually edit JSONL), call `tg unblock` — verify status defaults to todo
+- [x] Write integration tests for claim semantics: agent-A claims, agent-B claim fails with exit 1, agent-A re-claims (updates claimed_at), do without claim works (no claim fields set), claimed_by/claimed_at visible in `tg list --json`
 
 *Ready Queue:*
 
-- [ ] Implement `compute_ready_queue()` in `src/model/deps.rs`: load active items and archived IDs. Build done set (active items with status=done + all archived IDs). Filter active items where: status==todo AND every dependency ID is in the done set. Deps on IDs absent from both active and archive are unmet (item not ready — emit warning to stderr listing the item ID and its unmet dep IDs so the issue is visible). Sort by priority desc, created_at asc
-- [ ] Add clap args for `tg ready`: `--json`, `--include-stale=<duration>` (humantime), `--limit N` (optional)
-- [ ] Implement `--include-stale` duration logic: parse humantime string (e.g., `4h`, `30m`) into a `Duration`, compute threshold as `Utc::now() - duration`, include Doing items whose `updated_at` < threshold. Use `<` (strictly older) — items exactly at threshold are not stale
-- [ ] Implement `tg ready` handler: find root, load active store and archive IDs (no lock), compute ready queue. If `--include-stale` provided: also include stale Doing items per above logic. Apply `--limit` if provided. Output list
+- [x] Implement `compute_ready_queue()` in `src/model/deps.rs`: load active items and archived IDs. Build done set (active items with status=done + all archived IDs). Filter active items where: status==todo AND every dependency ID is in the done set. Deps on IDs absent from both active and archive are unmet (item not ready — emit warning to stderr listing the item ID and its unmet dep IDs so the issue is visible). Sort by priority desc, created_at asc
+- [x] Add clap args for `tg ready`: `--json`, `--include-stale=<duration>` (humantime), `--limit N` (optional)
+- [x] Implement `--include-stale` duration logic: parse humantime string (e.g., `4h`, `30m`) into a `Duration`, compute threshold as `Utc::now() - duration`, include Doing items whose `updated_at` < threshold. Use `<` (strictly older) — items exactly at threshold are not stale
+- [x] Implement `tg ready` handler: find root, load active store and archive IDs (no lock), compute ready queue. If `--include-stale` provided: also include stale Doing items per above logic. Apply `--limit` if provided. Output list
 
 *Ready Queue Tests:*
 
-- [ ] Write integration tests for ready: items with no deps are ready, items with met deps (dep is done) are ready, items with unmet deps (dep is todo/doing) are not ready, items with dep on archived item are ready, items with dep on non-existent ID are not ready (and warning emitted), sort order (priority desc then created_at asc), stale inclusion (`--include-stale` — manually set old updated_at in JSONL to test), empty queue returns `[]`, completing a dep makes downstream items ready, `--include-stale` boundary: item exactly at threshold is NOT stale
+- [x] Write integration tests for ready: items with no deps are ready, items with met deps (dep is done) are ready, items with unmet deps (dep is todo/doing) are not ready, items with dep on archived item are ready, items with dep on non-existent ID are not ready (and warning emitted), sort order (priority desc then created_at asc), stale inclusion (`--include-stale` — manually set old updated_at in JSONL to test), empty queue returns `[]`, completing a dep makes downstream items ready, `--include-stale` boundary: item exactly at threshold is NOT stale
 
 *Concurrency (basic functional tests — stress tests in Phase 5):*
 
-- [ ] Write basic concurrency tests: spawn two processes both running `tg do <same-id> --claim <different-agent>` — assert exactly one succeeds (exit 0) and one fails (exit 1). Spawn 5 processes each adding a different item — assert all 5 items present after, no corruption
+- [x] Write basic concurrency tests: spawn two processes both running `tg do <same-id> --claim <different-agent>` — assert exactly one succeeds (exit 0) and one fails (exit 1). Spawn 5 processes each adding a different item — assert all 5 items present after, no corruption
 
 **Verification:**
 
-- [ ] `cargo test` passes all tests (Phases 1-3, no regressions)
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] Full agent workflow (as integration test): create item → `tg do <id> --claim agent-1` → `tg done <id>` → `tg show <id> --json` — item is in archive with status=done, claim fields cleared
-- [ ] `tg todo` unclaim: `tg do <id> --claim agent-1` → `tg todo <id>` → verify status=todo, claimed_by=null
-- [ ] Block/unblock cycle: `tg do <id>` → `tg block <id> --reason "waiting"` → `tg unblock <id>` — restored to doing state
-- [ ] Ready queue with deps: add A (no deps), add B (depends on A) → `tg ready` returns only A → `tg done A` → `tg ready` returns B
-- [ ] Claim conflict: `tg do <id> --claim agent-1` succeeds, `tg do <id> --claim agent-2` exits 1
-- [ ] Basic concurrent claim race: exactly one winner, no corruption
-- [ ] Per-command JSON schema validation for all new commands
+- [x] `cargo test` passes all tests (Phases 1-3, no regressions)
+- [x] `cargo clippy -- -D warnings` passes
+- [x] Full agent workflow (as integration test): create item → `tg do <id> --claim agent-1` → `tg done <id>` → `tg show <id> --json` — item is in archive with status=done, claim fields cleared
+- [x] `tg todo` unclaim: `tg do <id> --claim agent-1` → `tg todo <id>` → verify status=todo, claimed_by=null
+- [x] Block/unblock cycle: `tg do <id>` → `tg block <id> --reason "waiting"` → `tg unblock <id>` — restored to doing state
+- [x] Ready queue with deps: add A (no deps), add B (depends on A) → `tg ready` returns only A → `tg done A` → `tg ready` returns B
+- [x] Claim conflict: `tg do <id> --claim agent-1` succeeds, `tg do <id> --claim agent-2` exits 1
+- [x] Basic concurrent claim race: exactly one winner, no corruption
+- [x] Per-command JSON schema validation for all new commands
 
 **Commit:** `[TG-001][P3] Feature: State machine, claim semantics, archival, ready queue`
 
@@ -360,7 +360,14 @@ The `tg done` two-phase write (archive-first) is the highest-risk operation. The
 
 Full concurrency stress tests (10 threads × 100 operations) are deferred to Phase 5 (Hardening) to avoid timing-sensitive flaky tests blocking this phase. Phase 3 includes basic functional concurrency tests (claim race, concurrent adds) that validate correctness.
 
+The `compute_ready_queue` function returns warnings as data (not eprintln!) so the CLI layer controls output — follows the same pattern as `deps::validate_dep()`. The `append_to_archive` function was enhanced to handle crash recovery: it seeks to the last byte to check for a trailing newline, prepending one if needed so appended items always start on their own line.
+
+Same-agent re-claim (`tg do <id> --claim agent-1` when already doing+claimed by agent-1) succeeds and updates `claimed_at`. This is a special case handled before the state machine validation since `doing→doing` is not a valid transition in the general case.
+
 **Followups:**
+
+- [ ] `tg do <id> --claim agent-1` on an already-Doing unclaimed item returns `InvalidTransition` rather than setting the claim. Consider whether retroactive claiming should be supported as a separate feature.
+- [ ] Stale doing items in `tg ready --include-stale` are appended after ready (todo) items rather than merged and globally sorted. Consider interleaving for a more intuitive priority-ordered output.
 
 ---
 
@@ -545,6 +552,7 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 |-------|--------|--------|-------|
 | 1 | complete | `[TG-001][P1]` | 37 unit tests + 6 integration tests + 2 lock PoC tests. Serde PoC passed. All verification items green. |
 | 2 | complete | `[TG-001][P2]` | 68 unit tests + 54 integration tests (122 total). All CRUD commands implemented with dot-path extensions, cycle detection, dependency validation. Code review passed — fixed status parsing, dep/tag deduplication. Clippy clean. |
+| 3 | complete | `[TG-001][P3]` | 76 unit tests + 99 integration tests (175 total). All state transitions, claim semantics, archival, ready queue implemented. Code review passed — fixed apply_block fragility, unblock error message, moved eprintln from domain layer, added unit tests for apply_* methods, optimized archive append. Clippy clean. |
 
 ## Followups Summary
 

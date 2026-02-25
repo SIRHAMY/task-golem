@@ -38,5 +38,14 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             force,
             clear_deps,
         } => commands::rm::run(cli.json, id, force, clear_deps),
+        Commands::Do { id, claim } => commands::transition::run_do(cli.json, id, claim),
+        Commands::Done { id } => commands::transition::run_done(cli.json, id),
+        Commands::Todo { id } => commands::transition::run_todo(cli.json, id),
+        Commands::Block { id, reason } => commands::transition::run_block(cli.json, id, reason),
+        Commands::Unblock { id } => commands::transition::run_unblock(cli.json, id),
+        Commands::Ready {
+            include_stale,
+            limit,
+        } => commands::ready::run(cli.json, include_stale, limit),
     }
 }

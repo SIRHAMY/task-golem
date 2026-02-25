@@ -80,7 +80,6 @@ impl Store {
     }
 
     /// Append a single item to the archive file.
-    #[allow(dead_code)] // Used in Phase 3
     pub fn append_to_archive(&self, item: &Item) -> Result<(), TgError> {
         jsonl::append_to_archive(&self.archive_path(), item)
     }
