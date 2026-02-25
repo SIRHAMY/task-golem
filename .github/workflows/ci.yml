@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format check
+        run: cargo fmt -- --check
+
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Check binary size (< 15MB)
+        run: |
+          test -f target/release/tg || { echo "ERROR: Binary not found at target/release/tg"; exit 1; }
+          SIZE=$(stat -c%s target/release/tg 2>/dev/null || stat -f%z target/release/tg)
+          echo "Binary size: $SIZE bytes ($(( SIZE / 1024 / 1024 )) MB)"
+          if [ "$SIZE" -gt 15728640 ]; then
+            echo "ERROR: Binary size exceeds 15MB limit"
+            exit 1
+          fi

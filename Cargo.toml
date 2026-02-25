@@ -11,6 +11,7 @@ path = "src/main.rs"
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 fd-lock = "4"
 hex = "0.4"
 humantime = "2"
@@ -24,7 +25,12 @@ thiserror = "2"
 
 [dev-dependencies]
 assert_cmd = "2"
+criterion = { version = "0.5", features = ["html_reports"] }
 predicates = "3"
+
+[[bench]]
+name = "ready_queue"
+harness = false
 
 [profile.release]
 opt-level = "z"

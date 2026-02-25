@@ -50,5 +50,12 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
         Commands::Next => commands::next::run(cli.json, cli.verbose),
         Commands::Dep { action } => commands::dep::run(cli.json, action),
         Commands::Doctor { fix } => commands::doctor::run(cli.json, fix),
+        Commands::Archive { before } => commands::archive::run(cli.json, before),
+        Commands::Dump { yaml } => commands::dump::run(yaml),
+        Commands::Completions { shell } => {
+            let mut cmd = <args::Cli as clap::CommandFactory>::command();
+            clap_complete::generate(shell, &mut cmd, "tg", &mut std::io::stdout());
+            Ok(())
+        }
     }
 }

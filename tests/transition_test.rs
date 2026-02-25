@@ -142,7 +142,7 @@ fn transition_blocked_to_done_fails() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[test]
-fn transition_blocked_to_blocked_fails() -> Result<(), Box<dyn std::error::Error>> {
+fn transition_blocked_to_blocked_idempotent() -> Result<(), Box<dyn std::error::Error>> {
     let project = TestProject::new()?;
     let added = project.run_tg_json(&["add", "Test item"]);
     let id = added["id"].as_str().unwrap();
@@ -150,7 +150,11 @@ fn transition_blocked_to_blocked_fails() -> Result<(), Box<dyn std::error::Error
     project.run_tg_json(&["block", id]);
 
     let output = project.run_tg(&["--json", "block", id]);
-    assert!(!output.status.success());
+    assert!(output.status.success());
+    let json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    assert_eq!(json["idempotent"], true);
+    assert_eq!(json["previous_state"], "blocked");
     Ok(())
 }
 

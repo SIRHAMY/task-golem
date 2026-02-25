@@ -183,6 +183,26 @@ pub enum Commands {
         #[arg(long)]
         fix: bool,
     },
+
+    /// Archive maintenance: recover unarchived done items, prune old entries
+    Archive {
+        /// Prune archive entries older than this date (ISO 8601, e.g., 2026-01-01)
+        #[arg(long)]
+        before: Option<String>,
+    },
+
+    /// Export all items (active + archive) in JSON or YAML format
+    Dump {
+        /// Output in YAML format (default: JSON)
+        #[arg(long)]
+        yaml: bool,
+    },
+
+    /// Generate shell completion scripts
+    Completions {
+        /// Shell to generate completions for (bash, zsh, fish, elvish, powershell)
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Debug, Subcommand)]

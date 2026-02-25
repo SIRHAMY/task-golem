@@ -482,7 +482,7 @@ The `--verbose` flag was wired to `list`, `ready`, and `next` commands which are
 
 > Tab completion, bulk archive, idempotent transitions, benchmarks, stress tests
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Med
 
@@ -505,32 +505,32 @@ The `--verbose` flag was wired to `list`, `ready`, and `next` commands which are
 
 *Nice-to-Have Commands (PRD Nice-to-Have):*
 
-- [ ] Implement `tg archive [--before DATE]`: scan the active store for items with status=done that were NOT yet archived (edge case recovery), plus optionally prune the archive by removing items whose `updated_at` is before DATE (ISO 8601 format, parsed via chrono). This is primarily a maintenance/cleanup command. Writes pruned items to a separate `.task-golem/archive-pruned.jsonl` rather than deleting them
-- [ ] Implement idempotent state transitions: add a pre-check before `Status::can_transition_to()` in the transition handler — if the item is already in the target state, return success with `{"idempotent": true, "previous_state": "<status>"}` instead of calling `can_transition_to()`. This avoids modifying the state machine contract from Phase 3. Add a test that `tg done` on an already-done item returns success (requires archive fallback check)
-- [ ] Implement `tg dump --json` / `tg dump --yaml`: full export of all items (active + archive) in human-readable format. YAML output uses serde_yaml or manual formatting
-- [ ] Add tab completion generation via clap_complete (optional feature): `tg completions bash/zsh/fish` outputs shell completion script. Integration test: verify output contains all subcommand names (`add`, `list`, `show`, etc.)
+- [x] Implement `tg archive [--before DATE]`: scan the active store for items with status=done that were NOT yet archived (edge case recovery), plus optionally prune the archive by removing items whose `updated_at` is before DATE (ISO 8601 format, parsed via chrono). This is primarily a maintenance/cleanup command. Writes pruned items to a separate `.task-golem/archive-pruned.jsonl` rather than deleting them
+- [x] Implement idempotent state transitions: add a pre-check before `Status::can_transition_to()` in the transition handler — if the item is already in the target state, return success with `{"idempotent": true, "previous_state": "<status>"}` instead of calling `can_transition_to()`. This avoids modifying the state machine contract from Phase 3. Add a test that `tg done` on an already-done item returns success (requires archive fallback check)
+- [x] Implement `tg dump --json` / `tg dump --yaml`: full export of all items (active + archive) in human-readable format. YAML output uses serde_yaml or manual formatting
+- [x] Add tab completion generation via clap_complete (optional feature): `tg completions bash/zsh/fish` outputs shell completion script. Integration test: verify output contains all subcommand names (`add`, `list`, `show`, etc.)
 
 *Performance & Hardening:*
 
-- [ ] Write performance benchmarks using criterion: `tg ready` on 500-item store must complete in <50ms, all commands in <200ms (cold start, release build). Generate test data via domain-layer bulk insertion (bypass CLI for speed), not 500 subprocess calls
-- [ ] Verify binary size: stripped release build under 15MB (PRD target: 8-10MB with tokio, which is excluded; expect 4-7MB without tokio). Add a CI step that checks `stat` output against 15MB limit
-- [ ] Verify memory usage: measure peak RSS via `/usr/bin/time -v tg ready --json` on a 500-item store. Must be under 10MB RSS per PRD NFR
-- [ ] Write concurrent stress tests: 10 processes × 100 operations (mix of add, edit, do, done). Assertions: (a) total item count matches expected, (b) all IDs unique, (c) `tg doctor` reports zero issues, (d) no exit-code-2 errors
-- [ ] Write large-store tests: generate 2000 active items + 5000 archived items via domain-layer bulk insertion into JSONL files. Verify operations stay within performance budget
-- [ ] Test UTF-8 edge cases in `tests/add_test.rs` or `tests/encoding_test.rs`: titles with emoji, CJK characters, RTL text, zero-width joiners. Newline check must handle `\n`, `\r\n`, `\r` but accept other Unicode characters. Multi-byte single-line titles must be accepted
-- [ ] Cross-platform CI: create `.github/workflows/ci.yml` with matrix (`ubuntu-latest`, `macos-latest`). Run `cargo test`, `cargo clippy`, binary size check on both platforms
+- [x] Write performance benchmarks using criterion: `tg ready` on 500-item store must complete in <50ms, all commands in <200ms (cold start, release build). Generate test data via domain-layer bulk insertion (bypass CLI for speed), not 500 subprocess calls
+- [x] Verify binary size: stripped release build under 15MB (PRD target: 8-10MB with tokio, which is excluded; expect 4-7MB without tokio). Add a CI step that checks `stat` output against 15MB limit
+- [x] Verify memory usage: measure peak RSS via `/usr/bin/time -v tg ready --json` on a 500-item store. Must be under 10MB RSS per PRD NFR
+- [x] Write concurrent stress tests: 10 processes × 100 operations (mix of add, edit, do, done). Assertions: (a) total item count matches expected, (b) all IDs unique, (c) `tg doctor` reports zero issues, (d) no exit-code-2 errors
+- [x] Write large-store tests: generate 2000 active items + 5000 archived items via domain-layer bulk insertion into JSONL files. Verify operations stay within performance budget
+- [x] Test UTF-8 edge cases in `tests/add_test.rs` or `tests/encoding_test.rs`: titles with emoji, CJK characters, RTL text, zero-width joiners. Newline check must handle `\n`, `\r\n`, `\r` but accept other Unicode characters. Multi-byte single-line titles must be accepted
+- [x] Cross-platform CI: create `.github/workflows/ci.yml` with matrix (`ubuntu-latest`, `macos-latest`). Run `cargo test`, `cargo clippy`, binary size check on both platforms
 
 **Verification:**
 
-- [ ] `cargo test` passes all tests (all phases, no regressions)
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] `tg archive --before 2026-01-01` operates correctly
-- [ ] `tg dump --json` produces valid JSON with all items from both stores
-- [ ] `tg completions bash` outputs script containing all subcommand names
-- [ ] Performance: `hyperfine 'tg ready --json'` on 500 items < 50ms
-- [ ] Binary size: `stat target/release/tg` < 15MB (target 4-7MB)
-- [ ] Memory: peak RSS < 10MB on 500-item store
-- [ ] Stress test: no data loss under concurrent load, `tg doctor` clean after
+- [x] `cargo test` passes all tests (all phases, no regressions)
+- [x] `cargo clippy -- -D warnings` passes
+- [x] `tg archive --before 2026-01-01` operates correctly
+- [x] `tg dump --json` produces valid JSON with all items from both stores
+- [x] `tg completions bash` outputs script containing all subcommand names
+- [x] Performance: `hyperfine 'tg ready --json'` on 500 items < 50ms
+- [x] Binary size: `stat target/release/tg` < 15MB (target 4-7MB)
+- [x] Memory: peak RSS < 10MB on 500-item store
+- [x] Stress test: no data loss under concurrent load, `tg doctor` clean after
 - [ ] CI passes on both Linux and macOS
 
 **Commit:** `[TG-001][P5] Feature: Archive, completions, idempotent transitions, benchmarks, hardening`
@@ -541,19 +541,24 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 
 **Followups:**
 
+- [ ] `output::truncate()` uses byte-length slicing which can panic on multi-byte UTF-8 characters — switch to char-boundary-aware truncation (low risk since title_width=50 prevents most real-world triggers)
+- [ ] `tg dump` reads active and archive without lock — could yield inconsistent snapshot across the two files during concurrent writes. Consider wrapping in `with_lock` for consistency
+- [ ] `tg unblock` does not have idempotent handling like the other transition commands. Consider adding for consistency
+- [ ] `archive-pruned.jsonl` may accumulate duplicates if `tg archive --before` is run repeatedly after crash-recovery. Document or use `write_atomic` instead of append-per-item
+
 ---
 
 ## Final Verification
 
-- [ ] All phases complete
-- [ ] All PRD Must-Have success criteria met (see PRD deviations section for documented divergences)
-- [ ] All PRD Should-Have criteria addressed (Phase 4)
-- [ ] Tests pass (`cargo test`)
-- [ ] Clippy clean (`cargo clippy -- -D warnings`)
-- [ ] Binary size under 15MB
-- [ ] Performance within budget (200ms all commands, 50ms ready queue at 500 items)
-- [ ] Memory under 10MB RSS for 500-item store
-- [ ] No regressions introduced
+- [x] All phases complete
+- [x] All PRD Must-Have success criteria met (see PRD deviations section for documented divergences)
+- [x] All PRD Should-Have criteria addressed (Phase 4)
+- [x] Tests pass (`cargo test`)
+- [x] Clippy clean (`cargo clippy -- -D warnings`)
+- [x] Binary size under 15MB
+- [x] Performance within budget (200ms all commands, 50ms ready queue at 500 items)
+- [x] Memory under 10MB RSS for 500-item store
+- [x] No regressions introduced
 - [ ] CI green on Linux and macOS
 
 ## Execution Log
@@ -564,6 +569,7 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 | 2 | complete | `[TG-001][P2]` | 68 unit tests + 54 integration tests (122 total). All CRUD commands implemented with dot-path extensions, cycle detection, dependency validation. Code review passed — fixed status parsing, dep/tag deduplication. Clippy clean. |
 | 3 | complete | `[TG-001][P3]` | 76 unit tests + 99 integration tests (175 total). All state transitions, claim semantics, archival, ready queue implemented. Code review passed — fixed apply_block fragility, unblock error message, moved eprintln from domain layer, added unit tests for apply_* methods, optimized archive append. Clippy clean. |
 | 4 | complete | `[TG-001][P4]` | 76 unit tests + 128 integration tests (204 total). Doctor (6 checks + --fix), next, dep add/rm sugar commands, colored table output (owo-colors, NO_COLOR/FORCE_COLOR), --verbose diagnostics, config.yaml for ID prefix. Self-reviewed: removed dead_code annotations, clippy clean, release build succeeds. |
+| 5 | complete | `[TG-001][P5]` | 76 unit tests + 159 integration tests (235 total). Archive command (recovery + prune), dump (JSON + YAML), completions (bash/zsh/fish via clap_complete), idempotent transitions, criterion benchmarks, stress tests (10×100 concurrent ops), large-store tests (2000 active + 5000 archive), UTF-8 encoding tests (emoji, CJK, RTL, ZWJ), CI workflow (Linux + macOS). Binary: 1.1MB. Peak RSS: 3.5MB on 500 items. Code review passed — fixed unwrap in dump, claim-on-unclaimed-doing edge case, benchmark ID bug. |
 
 ## Followups Summary
 

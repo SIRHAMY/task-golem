@@ -1,6 +1,8 @@
 pub mod add;
+pub mod archive;
 pub mod dep;
 pub mod doctor;
+pub mod dump;
 pub mod edit;
 pub mod init;
 pub mod list;
