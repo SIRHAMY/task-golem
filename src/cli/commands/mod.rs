@@ -1,7 +1,10 @@
 pub mod add;
+pub mod dep;
+pub mod doctor;
 pub mod edit;
 pub mod init;
 pub mod list;
+pub mod next;
 pub mod ready;
 pub mod rm;
 pub mod show;

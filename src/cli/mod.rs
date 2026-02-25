@@ -17,7 +17,7 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             tags,
             sets,
         } => commands::add::run(cli.json, title, description, priority, deps, tags, sets),
-        Commands::List { status, tag } => commands::list::run(cli.json, status, tag),
+        Commands::List { status, tag } => commands::list::run(cli.json, cli.verbose, status, tag),
         Commands::Show { id } => commands::show::run(cli.json, id),
         Commands::Edit {
             id,
@@ -46,6 +46,9 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
         Commands::Ready {
             include_stale,
             limit,
-        } => commands::ready::run(cli.json, include_stale, limit),
+        } => commands::ready::run(cli.json, cli.verbose, include_stale, limit),
+        Commands::Next => commands::next::run(cli.json, cli.verbose),
+        Commands::Dep { action } => commands::dep::run(cli.json, action),
+        Commands::Doctor { fix } => commands::doctor::run(cli.json, fix),
     }
 }

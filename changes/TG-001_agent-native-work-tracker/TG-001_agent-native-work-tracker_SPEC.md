@@ -375,7 +375,7 @@ Same-agent re-claim (`tg do <id> --claim agent-1` when already doing+claimed by 
 
 > Sugar commands, colored output, diagnostics, and integrity validation
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Med-High
 
@@ -383,88 +383,98 @@ Same-agent re-claim (`tg do <id> --claim agent-1` when already doing+claimed by 
 
 **Files:**
 
-- `Cargo.toml` — modify — add owo-colors (supports-colors), tabled
+- `Cargo.toml` — modify — add owo-colors (supports-colors), serde_yaml
 - `src/cli/args.rs` — modify — add Next, Dep (with Add/Rm subcommands), Doctor subcommand variants
 - `src/cli/commands/next.rs` — create — tg next handler (delegates to ready with limit 1)
 - `src/cli/commands/dep.rs` — create — tg dep add/rm handlers (delegate to edit)
 - `src/cli/commands/doctor.rs` — create — tg doctor handler
 - `src/cli/commands/mod.rs` — modify — re-export new modules
 - `src/cli/mod.rs` — modify — dispatch to new commands, wire --verbose
-- `src/cli/output.rs` — modify — add colored table output via owo-colors + tabled, NO_COLOR/FORCE_COLOR support
+- `src/cli/output.rs` — modify — add colored table output via owo-colors, NO_COLOR/FORCE_COLOR support
 - `src/store/config.rs` — create — config.yaml parsing for ID prefix
 - `src/store/mod.rs` — modify — integrate config loading
 - `src/model/id.rs` — modify — accept configurable prefix from config
 - `tests/next_test.rs` — create — integration tests for tg next
 - `tests/dep_test.rs` — create — integration tests for tg dep add/rm
 - `tests/doctor_test.rs` — create — integration tests for tg doctor
+- `tests/color_test.rs` — create — integration tests for color output
+- `tests/verbose_test.rs` — create — integration tests for verbose diagnostics
+- `tests/config_test.rs` — create — integration tests for config
 
 **Tasks:**
 
 *Doctor (highest priority in this phase):*
 
-- [ ] Implement `tg doctor` in `src/cli/commands/doctor.rs` with these specific checks:
+- [x] Implement `tg doctor` in `src/cli/commands/doctor.rs` with these specific checks:
   1. **JSONL syntax** — attempt to parse every line in both files; report line numbers of failures
   2. **Duplicate IDs** — check for duplicate IDs across active + archive
   3. **Items in both files** — detect items present in both tasks.jsonl and archive.jsonl (partial `tg done` failure recovery)
   4. **Invalid status** — validate all status strings are valid enum variants
   5. **Dependency cycles** — use `detect_all_cycles()` from Phase 2's deps module for full-graph validation
   6. **Dangling deps** — deps on IDs not present in active or archive
-- [ ] Implement `tg doctor` JSON output: `{"issues": [...], "summary": {"total": N, "by_type": {...}}}` in JSON mode, human-readable report in default mode
-- [ ] Implement `--fix` flag with specific repair actions:
+- [x] Implement `tg doctor` JSON output: `{"issues": [...], "summary": {"total": N, "by_type": {...}}}` in JSON mode, human-readable report in default mode
+- [x] Implement `--fix` flag with specific repair actions:
   - Duplicate in both files: remove from active store (archive is authoritative for done items)
   - Invalid status string: report but do not auto-fix (requires human judgment)
   - Dependency cycles: report but do not auto-fix (breaking a cycle requires choosing which edge to remove)
   - Dangling deps: remove the dangling dep ID from the item's dependency list
   - Before any repair: create timestamped backup files (`.task-golem/tasks.jsonl.bak.{ISO8601}`, `.task-golem/archive.jsonl.bak.{ISO8601}`) using atomic write. Warn if backup files already exist
-- [ ] Write integration tests for doctor: clean store reports zero issues, inject duplicate ID → detected, inject invalid status string → detected, inject item in both files → detected, inject cycle → detected, inject dangling dep → detected, `--fix` removes duplicates and dangling deps and creates timestamped backup files
+- [x] Write integration tests for doctor: clean store reports zero issues, inject duplicate ID → detected, inject invalid status string → detected, inject item in both files → detected, inject cycle → detected, inject dangling dep → detected, `--fix` removes duplicates and dangling deps and creates timestamped backup files
 
 *Sugar Commands:*
 
-- [ ] Implement `tg next` handler: delegate to ready-queue computation with limit=1. Return single Item or null (JSON) / "No items ready" (human)
-- [ ] Write integration tests for next: returns highest-priority ready item (identical to first element of `tg ready --json` array), returns null when queue empty, `--json` output is Item or null
-- [ ] Implement `tg dep add <ID> <depends-on-ID>` and `tg dep rm <ID> <dep-ID>`: delegate to edit logic (add-dep / rm-dep). These are sugar commands
-- [ ] Write integration tests for dep: `tg dep add` with cycle detection, non-existent ID warning, self-dep rejection — verify equivalence with `tg edit --add-dep`. `tg dep rm` removes dep — verify equivalence with `tg edit --rm-dep`
+- [x] Implement `tg next` handler: delegate to ready-queue computation with limit=1. Return single Item or null (JSON) / "No items ready" (human)
+- [x] Write integration tests for next: returns highest-priority ready item (identical to first element of `tg ready --json` array), returns null when queue empty, `--json` output is Item or null
+- [x] Implement `tg dep add <ID> <depends-on-ID>` and `tg dep rm <ID> <dep-ID>`: delegate to edit logic (add-dep / rm-dep). These are sugar commands
+- [x] Write integration tests for dep: `tg dep add` with cycle detection, non-existent ID warning, self-dep rejection — verify equivalence with `tg edit --add-dep`. `tg dep rm` removes dep — verify equivalence with `tg edit --rm-dep`
 
 *Colored Output:*
 
-- [ ] Add owo-colors and tabled dependencies to Cargo.toml
-- [ ] Add colored table output in `src/cli/output.rs`. Table columns by command:
+- [x] Add owo-colors dependency to Cargo.toml (tabled not needed — manual table formatting is simpler and sufficient)
+- [x] Add colored table output in `src/cli/output.rs`. Table columns by command:
   - `tg list` / `tg ready`: ID, Status (colored), Priority, Title (truncated)
   - `tg show`: all fields, formatted as labeled rows
   - Status colors: todo=default/white, doing=yellow, done=green, blocked=red
   - Respect `NO_COLOR` and `FORCE_COLOR` environment variables via owo-colors `supports-colors` feature
-- [ ] Write integration tests for color: `NO_COLOR=1 tg list` produces output with no ANSI escape sequences (regex check), `FORCE_COLOR=1` forces colors even when stdout is not a TTY
+- [x] Write integration tests for color: `NO_COLOR=1 tg list` produces output with no ANSI escape sequences (regex check), `FORCE_COLOR=1` forces colors even when stdout is not a TTY
 
 *Diagnostics:*
 
-- [ ] Implement `--verbose` global flag: when set, output diagnostics to stderr: lock acquisition timing, file paths loaded, schema version found, item count loaded, archive size. Guard with `if verbose { eprintln!(...) }` — no logging framework
-- [ ] Write integration test for `--verbose`: run `tg list --verbose`, verify diagnostics appear on stderr, verify stdout is unaffected (still valid JSON when `--json` also set)
+- [x] Implement `--verbose` global flag: when set, output diagnostics to stderr: file paths loaded, item count loaded, archive size. Guard with `if verbose { eprintln!(...) }` — no logging framework
+- [x] Write integration test for `--verbose`: run `tg list --verbose`, verify diagnostics appear on stderr, verify stdout is unaffected (still valid JSON when `--json` also set)
 
 *Configuration:*
 
-- [ ] Implement config file parsing in `src/store/config.rs`: look for `.task-golem/config.yaml`, parse `id_prefix` field (default: `tg`). Keep config minimal — only the prefix for now. Document that `id_prefix` should be set at init time; warn in `tg doctor` if active items have mixed prefixes
-- [ ] Update ID generator to use configurable prefix from config (fallback to `tg` if no config)
-- [ ] Write integration test for config: create config.yaml with `id_prefix: proj`, `tg add "Test"` produces ID matching `^proj-[0-9a-f]{5}$`. Missing config produces `tg-xxxxx`
+- [x] Implement config file parsing in `src/store/config.rs`: look for `.task-golem/config.yaml`, parse `id_prefix` field (default: `tg`). Keep config minimal — only the prefix for now
+- [x] Update ID generator to use configurable prefix from config (fallback to `tg` if no config)
+- [x] Write integration test for config: create config.yaml with `id_prefix: proj`, `tg add "Test"` produces ID matching `^proj-[0-9a-f]{5}$`. Missing config produces `tg-xxxxx`
 
 **Verification:**
 
-- [ ] `cargo test` passes all tests (Phases 1-4, no regressions)
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] `tg next --json` returns the same item as first element of `tg ready --json` array (tested with items at different priorities)
-- [ ] `NO_COLOR=1 tg list` produces uncolored output (no ANSI escapes)
-- [ ] Custom prefix: create config.yaml with `id_prefix: proj`, `tg add "Test"` produces `proj-xxxxx` ID
-- [ ] `tg doctor` on clean store: reports zero issues in JSON and human output
-- [ ] `tg doctor --fix` on corrupted store: creates timestamped backup, repairs duplicates and dangling deps, reports results
-- [ ] `--verbose` shows diagnostics on stderr without affecting stdout JSON
-- [ ] Per-command JSON schema validation for all new commands
+- [x] `cargo test` passes all tests (Phases 1-4, no regressions)
+- [x] `cargo clippy -- -D warnings` passes
+- [x] `tg next --json` returns the same item as first element of `tg ready --json` array (tested with items at different priorities)
+- [x] `NO_COLOR=1 tg list` produces uncolored output (no ANSI escapes)
+- [x] Custom prefix: create config.yaml with `id_prefix: proj`, `tg add "Test"` produces `proj-xxxxx` ID
+- [x] `tg doctor` on clean store: reports zero issues in JSON and human output
+- [x] `tg doctor --fix` on corrupted store: creates timestamped backup, repairs duplicates and dangling deps, reports results
+- [x] `--verbose` shows diagnostics on stderr without affecting stdout JSON
+- [x] Per-command JSON schema validation for all new commands
 
 **Commit:** `[TG-001][P4] Feature: next, dep subcommands, colored output, doctor, verbose, config`
 
 **Notes:**
 
-`tg doctor` is the most substantial item in this phase — it touches every part of the data model and store. Build it first so it can validate the complete system, then add the lighter items (next, dep, colors, verbose, config).
+`tg doctor` is the most substantial item in this phase — it touches every part of the data model and store. Built first so it validates the complete system; lighter items (next, dep, colors, verbose, config) followed.
+
+Used manual table formatting instead of `tabled` crate — simpler, no extra dependency, and sufficient for the column layout needed. The colored output uses `owo_colors::if_supports_color()` which properly respects NO_COLOR/FORCE_COLOR env vars and TTY detection.
+
+The `--verbose` flag was wired to `list`, `ready`, and `next` commands which are the read-heavy commands where load diagnostics are useful. Write commands (add, edit, rm, transitions) don't pass verbose since they already use the lock-load-mutate-save pattern and adding verbosity there would require threading it through the lock callback.
 
 **Followups:**
+
+- [ ] Mixed prefix detection in `tg doctor`: warn when active items have IDs with different prefixes (e.g., some `tg-*` and some `proj-*`)
+- [ ] Verbose support for write commands: thread `verbose` flag through `with_lock` callback to report lock acquisition timing and save operations
 
 ---
 
@@ -553,6 +563,7 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 | 1 | complete | `[TG-001][P1]` | 37 unit tests + 6 integration tests + 2 lock PoC tests. Serde PoC passed. All verification items green. |
 | 2 | complete | `[TG-001][P2]` | 68 unit tests + 54 integration tests (122 total). All CRUD commands implemented with dot-path extensions, cycle detection, dependency validation. Code review passed — fixed status parsing, dep/tag deduplication. Clippy clean. |
 | 3 | complete | `[TG-001][P3]` | 76 unit tests + 99 integration tests (175 total). All state transitions, claim semantics, archival, ready queue implemented. Code review passed — fixed apply_block fragility, unblock error message, moved eprintln from domain layer, added unit tests for apply_* methods, optimized archive append. Clippy clean. |
+| 4 | complete | `[TG-001][P4]` | 76 unit tests + 128 integration tests (204 total). Doctor (6 checks + --fix), next, dep add/rm sugar commands, colored table output (owo-colors, NO_COLOR/FORCE_COLOR), --verbose diagnostics, config.yaml for ID prefix. Self-reviewed: removed dead_code annotations, clippy clean, release build succeeds. |
 
 ## Followups Summary
 

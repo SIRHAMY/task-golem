@@ -9,6 +9,7 @@ use crate::model::extensions;
 use crate::model::id;
 use crate::model::item::Item;
 use crate::model::status::Status;
+use crate::store::config::Config;
 use crate::store::root;
 use crate::store::Store;
 
@@ -24,6 +25,7 @@ pub fn run(
     Item::validate_title(&title)?;
 
     let project_dir = root::find_project_root_from_cwd()?;
+    let config = Config::load(&project_dir)?;
     let store = Store::new(project_dir);
 
     let item = store.with_lock(|store| {
@@ -36,7 +38,7 @@ pub fn run(
             all_ids.insert(item.id.clone());
         }
 
-        let new_id = id::generate_id(&all_ids)?;
+        let new_id = id::generate_id_with_prefix(&all_ids, &config.id_prefix)?;
 
         // Build active-only ID set for validate_dep
         let active_ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();

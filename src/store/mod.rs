@@ -1,3 +1,4 @@
+pub mod config;
 pub mod jsonl;
 pub mod lock;
 pub mod root;

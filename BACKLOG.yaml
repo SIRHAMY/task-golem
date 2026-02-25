@@ -10,10 +10,10 @@ items:
   impact: high
   requires_human_review: false
   created: 2026-02-24T23:17:45.278322533+00:00
-  updated: 2026-02-25T00:36:09.737879175+00:00
+  updated: 2026-02-25T00:49:26.487004647+00:00
   pipeline_type: feature
   phase_pool: main
-  last_phase_commit: 54e82d6609bbe304c6bef577a0d81e6a4ab7ee43
+  last_phase_commit: ef78e27f3218e2b9d9381822dd20ae357334bcd8
 - id: TG-002
   title: Validate extension key collision with serde(flatten)
   status: new
@@ -77,4 +77,22 @@ items:
   origin: TG-001/build
   created: 2026-02-25T00:36:09.747118156+00:00
   updated: 2026-02-25T00:36:09.747118156+00:00
-next_item_id: 8
+- id: TG-009
+  title: Mixed prefix detection in tg doctor
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:49:26.487986354+00:00
+  updated: 2026-02-25T00:49:26.487986354+00:00
+- id: TG-010
+  title: Verbose support for write commands
+  status: new
+  size: small
+  risk: low
+  requires_human_review: false
+  origin: TG-001/build
+  created: 2026-02-25T00:49:26.487986354+00:00
+  updated: 2026-02-25T00:49:26.487986354+00:00
+next_item_id: 10

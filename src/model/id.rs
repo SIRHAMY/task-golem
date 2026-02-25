@@ -2,21 +2,30 @@ use std::collections::HashSet;
 
 use crate::errors::TgError;
 
-const ID_PREFIX: &str = "tg";
+pub const DEFAULT_ID_PREFIX: &str = "tg";
 const ID_HEX_LEN: usize = 5;
 const MAX_COLLISION_RETRIES: u32 = 10;
 
-/// Generate a new unique ID in the format `tg-{5 hex chars}`.
+/// Generate a new unique ID with the default prefix `tg`.
 ///
 /// Retries up to 10 times on collision with existing IDs.
+#[cfg(test)]
 pub fn generate_id(existing_ids: &HashSet<String>) -> Result<String, TgError> {
+    generate_id_with_prefix(existing_ids, DEFAULT_ID_PREFIX)
+}
+
+/// Generate a new unique ID with a custom prefix.
+pub fn generate_id_with_prefix(
+    existing_ids: &HashSet<String>,
+    prefix: &str,
+) -> Result<String, TgError> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
 
     for _ in 0..MAX_COLLISION_RETRIES {
         let bytes: [u8; 3] = rng.r#gen();
         let hex_str = hex::encode(bytes);
-        let id = format!("{}-{}", ID_PREFIX, &hex_str[..ID_HEX_LEN]);
+        let id = format!("{}-{}", prefix, &hex_str[..ID_HEX_LEN]);
 
         if !existing_ids.contains(&id) {
             return Ok(id);
@@ -30,11 +39,16 @@ pub fn generate_id(existing_ids: &HashSet<String>) -> Result<String, TgError> {
 ///
 /// Resolution order:
 /// 1. Exact match
-/// 2. Prepend `tg-` and check for exact match
+/// 2. Prepend default prefix `tg-` and check for exact match
 /// 3. Prefix match (ID starts with input or `tg-{input}`)
 ///
 /// The `scope` parameter controls which ID sets are searched.
-pub fn resolve_id(input: &str, active_ids: &[String], archive_ids: &HashSet<String>, include_archive: bool) -> Result<String, TgError> {
+pub fn resolve_id(
+    input: &str,
+    active_ids: &[String],
+    archive_ids: &HashSet<String>,
+    include_archive: bool,
+) -> Result<String, TgError> {
     let all_ids: Vec<&String> = if include_archive {
         active_ids.iter().chain(archive_ids.iter()).collect()
     } else {
@@ -46,8 +60,8 @@ pub fn resolve_id(input: &str, active_ids: &[String], archive_ids: &HashSet<Stri
         return Ok(input.to_string());
     }
 
-    // 2. Prepend prefix and exact match
-    let prefixed = format!("{}-{}", ID_PREFIX, input);
+    // 2. Prepend default prefix and exact match
+    let prefixed = format!("{}-{}", DEFAULT_ID_PREFIX, input);
     if all_ids.contains(&&prefixed) {
         return Ok(prefixed);
     }

@@ -20,7 +20,7 @@ pub fn run(json_mode: bool, id_input: String) -> Result<(), TgError> {
         if json_mode {
             output::print_json(&item);
         } else {
-            print_item_human(&item);
+            output::print_item_detail(&item);
         }
         return Ok(());
     }
@@ -30,40 +30,10 @@ pub fn run(json_mode: bool, id_input: String) -> Result<(), TgError> {
         if json_mode {
             output::print_json(&item);
         } else {
-            print_item_human(&item);
+            output::print_item_detail(&item);
         }
         return Ok(());
     }
 
     Err(TgError::ItemNotFound(id_input))
-}
-
-fn print_item_human(item: &crate::model::item::Item) {
-    output::print_human(&format!("ID:           {}", item.id));
-    output::print_human(&format!("Title:        {}", item.title));
-    output::print_human(&format!("Status:       {}", item.status));
-    output::print_human(&format!("Priority:     {}", item.priority));
-    if let Some(ref desc) = item.description {
-        output::print_human(&format!("Description:  {}", desc));
-    }
-    if !item.tags.is_empty() {
-        output::print_human(&format!("Tags:         {}", item.tags.join(", ")));
-    }
-    if !item.dependencies.is_empty() {
-        output::print_human(&format!(
-            "Dependencies: {}",
-            item.dependencies.join(", ")
-        ));
-    }
-    output::print_human(&format!("Created:      {}", item.created_at));
-    output::print_human(&format!("Updated:      {}", item.updated_at));
-    if let Some(ref by) = item.claimed_by {
-        output::print_human(&format!("Claimed by:   {}", by));
-    }
-    if let Some(ref reason) = item.blocked_reason {
-        output::print_human(&format!("Blocked:      {}", reason));
-    }
-    for (key, value) in &item.extensions {
-        output::print_human(&format!("{}:  {}", key, value));
-    }
 }

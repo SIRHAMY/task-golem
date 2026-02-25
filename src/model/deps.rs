@@ -64,8 +64,6 @@ pub fn validate_dep(
 
 /// Full-graph cycle detection via topological sort (Kahn's algorithm).
 /// Returns all cycles found as vectors of item IDs.
-/// For use by `tg doctor` in Phase 4.
-#[allow(dead_code)] // Used in Phase 4
 pub fn detect_all_cycles(items: &[Item]) -> Vec<Vec<String>> {
     let ids: HashSet<&str> = items.iter().map(|i| i.id.as_str()).collect();
 

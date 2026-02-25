@@ -167,4 +167,41 @@ pub enum Commands {
         #[arg(long)]
         limit: Option<usize>,
     },
+
+    /// Show the next item to work on (highest-priority ready item)
+    Next,
+
+    /// Manage dependencies
+    Dep {
+        #[command(subcommand)]
+        action: DepAction,
+    },
+
+    /// Check project integrity and diagnose issues
+    Doctor {
+        /// Attempt to fix detected issues
+        #[arg(long)]
+        fix: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DepAction {
+    /// Add a dependency to an item
+    Add {
+        /// Item ID to add the dependency to
+        id: String,
+
+        /// ID of the item to depend on
+        depends_on: String,
+    },
+
+    /// Remove a dependency from an item
+    Rm {
+        /// Item ID to remove the dependency from
+        id: String,
+
+        /// ID of the dependency to remove
+        dep_id: String,
+    },
 }

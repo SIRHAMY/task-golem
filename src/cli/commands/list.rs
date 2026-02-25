@@ -6,10 +6,14 @@ use crate::store::Store;
 
 pub fn run(
     json_mode: bool,
+    verbose: bool,
     status_filter: Option<String>,
     tag_filter: Option<String>,
 ) -> Result<(), TgError> {
     let project_dir = root::find_project_root_from_cwd()?;
+    if verbose {
+        eprintln!("[verbose] Project root: {}", project_dir.display());
+    }
     let store = Store::new(project_dir);
 
     // Parse status filter if provided
@@ -23,9 +27,17 @@ pub fn run(
     // Load items based on status filter
     let mut items = if parsed_status == Some(Status::Done) {
         // Load full archive for done items
-        store.load_all_archive()?
+        let archive = store.load_all_archive()?;
+        if verbose {
+            eprintln!("[verbose] Loaded {} items from archive", archive.len());
+        }
+        archive
     } else {
-        store.load_active()?
+        let active = store.load_active()?;
+        if verbose {
+            eprintln!("[verbose] Loaded {} active items", active.len());
+        }
+        active
     };
 
     // Apply status filter
@@ -48,17 +60,16 @@ pub fn run(
             .then_with(|| a.created_at.cmp(&b.created_at))
     });
 
+    if verbose {
+        eprintln!("[verbose] Returning {} items after filtering", items.len());
+    }
+
     if json_mode {
         output::print_json(&items);
     } else if items.is_empty() {
         output::print_human("No items found.");
     } else {
-        for item in &items {
-            output::print_human(&format!(
-                "{} [{}] (p:{}) {}",
-                item.id, item.status, item.priority, item.title
-            ));
-        }
+        output::print_item_table(&items);
     }
 
     Ok(())
