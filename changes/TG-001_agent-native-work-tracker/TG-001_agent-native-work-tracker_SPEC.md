@@ -73,7 +73,7 @@ Every write follows the lock-load-mutate-atomic-save-unlock cycle. Every read sk
 
 > Project scaffold, core types, persistence layer, and `tg init`
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** High
 
@@ -105,72 +105,72 @@ Every write follows the lock-load-mutate-atomic-save-unlock cycle. Every read sk
 
 *Project Setup:*
 
-- [ ] Initialize Cargo project: `cargo init --name task-golem` with binary target named `tg` (via `[[bin]]` in Cargo.toml)
-- [ ] Add core dependencies to Cargo.toml: clap (derive), serde (derive), serde_json (without `preserve_order` — use default BTreeMap-backed Value::Object for deterministic nested ordering), fd-lock, rand, hex, chrono (serde), tempfile, thiserror, anyhow, humantime. Dev-dependencies: assert_cmd, predicates. Note: owo-colors and tabled deferred to Phase 4 (not needed until colored output)
-- [ ] Configure release profile: opt-level "z", lto true, codegen-units 1, strip true, panic "abort"
-- [ ] Create `.gitignore` with `/target` and editor artifacts
-- [ ] Commit `Cargo.lock` (standard practice for binary crates — pins dependency versions)
+- [x] Initialize Cargo project: `cargo init --name task-golem` with binary target named `tg` (via `[[bin]]` in Cargo.toml)
+- [x] Add core dependencies to Cargo.toml: clap (derive), serde (derive), serde_json (without `preserve_order` — use default BTreeMap-backed Value::Object for deterministic nested ordering), fd-lock, rand, hex, chrono (serde), tempfile, thiserror, anyhow, humantime. Dev-dependencies: assert_cmd, predicates. Note: owo-colors and tabled deferred to Phase 4 (not needed until colored output)
+- [x] Configure release profile: opt-level "z", lto true, codegen-units 1, strip true, panic "abort"
+- [x] Create `.gitignore` with `/target` and editor artifacts
+- [x] Commit `Cargo.lock` (standard practice for binary crates — pins dependency versions)
 
 *Serde PoC (GATE — must pass before proceeding to full Item implementation):*
 
-- [ ] Write a standalone `#[test]` in `src/model/item.rs` with a minimal struct that has `#[serde(flatten)] extensions: BTreeMap<String, serde_json::Value>` alongside `Option<T>` fields. Verify: (1) known fields serialize in declaration order, (2) extension fields serialize in alphabetical order after known fields, (3) `Option<T>` with value `None` serializes as `null` not omitted (requires `#[serde(serialize_with)]` or explicit `Option` handling), (4) nested `Value::Object` keys are alphabetically ordered (BTreeMap default), (5) round-trip (serialize then deserialize) produces byte-identical JSON output. This PoC gates all subsequent Item-dependent work. If `None` fields are omitted by default, implement a custom serializer or use `#[serde(default)]` on deserialize with explicit null serialization
+- [x] Write a standalone `#[test]` in `src/model/item.rs` with a minimal struct that has `#[serde(flatten)] extensions: BTreeMap<String, serde_json::Value>` alongside `Option<T>` fields. Verify: (1) known fields serialize in declaration order, (2) extension fields serialize in alphabetical order after known fields, (3) `Option<T>` with value `None` serializes as `null` not omitted (requires `#[serde(serialize_with)]` or explicit `Option` handling), (4) nested `Value::Object` keys are alphabetically ordered (BTreeMap default), (5) round-trip (serialize then deserialize) produces byte-identical JSON output. This PoC gates all subsequent Item-dependent work. If `None` fields are omitted by default, implement a custom serializer or use `#[serde(default)]` on deserialize with explicit null serialization
 
 *Error Types:*
 
-- [ ] Implement `TgError` enum in `src/errors.rs` with variants: `ItemNotFound`, `InvalidTransition`, `AmbiguousId`, `CycleDetected`, `AlreadyClaimed`, `InvalidInput`, `NotInitialized`, `DependentExists`, `StorageCorruption`, `LockTimeout`, `IoError`, `IdCollisionExhausted`, `SchemaVersionUnsupported`. Map each to exit code 1 (user) or 2 (system). Include JSON error serialization for `--json` mode
+- [x] Implement `TgError` enum in `src/errors.rs` with variants: `ItemNotFound`, `InvalidTransition`, `AmbiguousId`, `CycleDetected`, `AlreadyClaimed`, `InvalidInput`, `NotInitialized`, `DependentExists`, `StorageCorruption`, `LockTimeout`, `IoError`, `IdCollisionExhausted`, `SchemaVersionUnsupported`. Map each to exit code 1 (user) or 2 (system). Include JSON error serialization for `--json` mode
 
 *Domain Model:*
 
-- [ ] Implement `Status` enum in `src/model/status.rs`: Todo, Doing, Done, Blocked. Add `can_transition_to()` with the full transition table (todo→doing, todo→done, todo→blocked, doing→done, doing→blocked, doing→todo; blocked→restored is handled separately via unblock; done→anything is invalid; blocked→blocked is invalid). Serde as lowercase strings. Display trait
-- [ ] Write unit tests for Status: test all valid transitions return true, all invalid transitions return false (done→anything is false, blocked→blocked is false, blocked→doing is false, blocked→done is false), serde serializes as lowercase strings
-- [ ] Implement `Item` struct in `src/model/item.rs` with all fields per the design's JSON schema. Use `BTreeMap<String, serde_json::Value>` with `#[serde(flatten)]` for extensions. Null fields must be serialized (not skipped). Add validation methods (validate_title rejects newlines — check for `\n`, `\r\n`, `\r`)
-- [ ] Write unit tests for Item: serde round-trip produces byte-identical output, extension fields preserved through flatten, null fields included in JSON (not omitted), title validation rejects embedded newlines, chrono DateTime serialization as ISO 8601 UTC (`"2026-02-24T12:00:00Z"` format), nested extension `Value::Object` keys sorted alphabetically
-- [ ] Implement ID generator in `src/model/id.rs`: generate 3 random bytes, hex-encode to 6 chars, truncate to 5, prefix with `tg-`. Accept `HashSet<String>` of existing IDs, retry up to 10 times on collision, return `TgError::IdCollisionExhausted` after 10 failures
-- [ ] Implement ID resolver in `src/model/id.rs`: three-step resolution (exact match → prepend `tg-` → prefix match). Accept a scope parameter to control which stores to search (active-only for write commands, active+archive for read commands). Return `TgError::AmbiguousId` with matching IDs list on ambiguous prefix
-- [ ] Write unit tests for ID generation: format is `tg-{5 hex chars}`, collision retry works, 10 consecutive collisions returns error. Tests for resolution: exact match, bare hex, prefix match, ambiguous prefix, no match
+- [x] Implement `Status` enum in `src/model/status.rs`: Todo, Doing, Done, Blocked. Add `can_transition_to()` with the full transition table (todo→doing, todo→done, todo→blocked, doing→done, doing→blocked, doing→todo; blocked→restored is handled separately via unblock; done→anything is invalid; blocked→blocked is invalid). Serde as lowercase strings. Display trait
+- [x] Write unit tests for Status: test all valid transitions return true, all invalid transitions return false (done→anything is false, blocked→blocked is false, blocked→doing is false, blocked→done is false), serde serializes as lowercase strings
+- [x] Implement `Item` struct in `src/model/item.rs` with all fields per the design's JSON schema. Use `BTreeMap<String, serde_json::Value>` with `#[serde(flatten)]` for extensions. Null fields must be serialized (not skipped). Add validation methods (validate_title rejects newlines — check for `\n`, `\r\n`, `\r`)
+- [x] Write unit tests for Item: serde round-trip produces byte-identical output, extension fields preserved through flatten, null fields included in JSON (not omitted), title validation rejects embedded newlines, chrono DateTime serialization as ISO 8601 UTC (`"2026-02-24T12:00:00Z"` format), nested extension `Value::Object` keys sorted alphabetically
+- [x] Implement ID generator in `src/model/id.rs`: generate 3 random bytes, hex-encode to 6 chars, truncate to 5, prefix with `tg-`. Accept `HashSet<String>` of existing IDs, retry up to 10 times on collision, return `TgError::IdCollisionExhausted` after 10 failures
+- [x] Implement ID resolver in `src/model/id.rs`: three-step resolution (exact match → prepend `tg-` → prefix match). Accept a scope parameter to control which stores to search (active-only for write commands, active+archive for read commands). Return `TgError::AmbiguousId` with matching IDs list on ambiguous prefix
+- [x] Write unit tests for ID generation: format is `tg-{5 hex chars}`, collision retry works, 10 consecutive collisions returns error. Tests for resolution: exact match, bare hex, prefix match, ambiguous prefix, no match
 
 *Persistence Layer:*
 
-- [ ] Implement project root resolver in `src/store/root.rs`: walk parent directories from CWD looking for `.task-golem/`. Return path or `TgError::NotInitialized` with CWD path in error message for debuggability
-- [ ] Write unit tests for root resolver: finds `.task-golem/` in CWD, in parent, in grandparent; returns error when not found
-- [ ] Implement file lock in `src/store/lock.rs`: open `.task-golem/tasks.lock`, non-blocking flock attempt, exponential backoff (10ms initial, doubling, 500ms cap, 5s total timeout, 0-50% random jitter). Return lock guard that releases on drop (RAII). Return `TgError::LockTimeout` on timeout
-- [ ] Write unit tests for lock: (a) acquisition succeeds on uncontended lock, (b) RAII drop releases lock, (c) backoff calculation function produces correct delays (10ms, 20ms, 40ms, ..., 500ms cap), (d) total backoff stays under 5s before returning LockTimeout
-- [ ] Write a cross-process lock PoC test: spawn a child process that holds the lock, verify the parent's attempt returns LockTimeout. This validates fd-lock's cross-process mutual exclusion before Phase 3 builds concurrency on top of it
-- [ ] Implement JSONL reader in `src/store/jsonl.rs`: parse first line as `{"schema_version": N}`, validate version is exactly 1 (exit 2 with `TgError::SchemaVersionUnsupported` if different — v1 only implements version 1 with no migration transform; the version check infrastructure is in place for future use). Parse subsequent lines as Item. Active store: fail-fast on malformed lines (`TgError::StorageCorruption` with line number). Archive: skip-and-warn on malformed lines (warning to stderr), including truncated last lines (detect incomplete JSON on the last line, log warning, skip — this handles crash-mid-append recovery)
-- [ ] Implement JSONL writer in `src/store/jsonl.rs`: write schema header, then items sorted by ID, one per line. Atomic write via a single encapsulated function that enforces fsync-before-rename by construction: NamedTempFile in same directory → write all data → sync_all() → persist(). Never expose a code path where `persist()` can be called without a preceding `sync_all()`
-- [ ] Write unit tests for JSONL: round-trip (write then read produces identical items), schema version validation (reject version 0, reject version 2), malformed line handling (active store fails with line number, archive skips and warns), items sorted by ID in output, truncated last line in archive skipped gracefully
-- [ ] Implement Store in `src/store/mod.rs` — broken into sub-operations:
-  - [ ] `with_lock(callback)` — acquire flock, execute callback, release on drop. Provides the lock-load-mutate-save-unlock cycle
-  - [ ] `load_active() -> Vec<Item>` — read and parse tasks.jsonl (no lock needed for reads)
-  - [ ] `save_active(items: &[Item])` — atomic write of sorted items to tasks.jsonl (must be called under lock)
-  - [ ] `load_archive_ids() -> HashSet<String>` — scan archive.jsonl line-by-line extracting only IDs (fast path for collision checks and dep resolution)
-  - [ ] `load_archive_item(id: &str) -> Option<Item>` — scan archive for a specific item (for `tg show` fallback)
-  - [ ] `load_all_archive() -> Vec<Item>` — full archive deserialization (for `tg list --status done`)
-  - [ ] `all_known_ids() -> HashSet<String>` — union of active IDs + archive IDs
-  - [ ] `append_to_archive(item: &Item)` — append single item to archive.jsonl + fsync (for `tg done`)
+- [x] Implement project root resolver in `src/store/root.rs`: walk parent directories from CWD looking for `.task-golem/`. Return path or `TgError::NotInitialized` with CWD path in error message for debuggability
+- [x] Write unit tests for root resolver: finds `.task-golem/` in CWD, in parent, in grandparent; returns error when not found
+- [x] Implement file lock in `src/store/lock.rs`: open `.task-golem/tasks.lock`, non-blocking flock attempt, exponential backoff (10ms initial, doubling, 500ms cap, 5s total timeout, 0-50% random jitter). Return lock guard that releases on drop (RAII). Return `TgError::LockTimeout` on timeout
+- [x] Write unit tests for lock: (a) acquisition succeeds on uncontended lock, (b) RAII drop releases lock, (c) backoff calculation function produces correct delays (10ms, 20ms, 40ms, ..., 500ms cap), (d) total backoff stays under 5s before returning LockTimeout
+- [x] Write a cross-process lock PoC test: spawn a child process that holds the lock, verify the parent's attempt returns LockTimeout. This validates fd-lock's cross-process mutual exclusion before Phase 3 builds concurrency on top of it
+- [x] Implement JSONL reader in `src/store/jsonl.rs`: parse first line as `{"schema_version": N}`, validate version is exactly 1 (exit 2 with `TgError::SchemaVersionUnsupported` if different — v1 only implements version 1 with no migration transform; the version check infrastructure is in place for future use). Parse subsequent lines as Item. Active store: fail-fast on malformed lines (`TgError::StorageCorruption` with line number). Archive: skip-and-warn on malformed lines (warning to stderr), including truncated last lines (detect incomplete JSON on the last line, log warning, skip — this handles crash-mid-append recovery)
+- [x] Implement JSONL writer in `src/store/jsonl.rs`: write schema header, then items sorted by ID, one per line. Atomic write via a single encapsulated function that enforces fsync-before-rename by construction: NamedTempFile in same directory → write all data → sync_all() → persist(). Never expose a code path where `persist()` can be called without a preceding `sync_all()`
+- [x] Write unit tests for JSONL: round-trip (write then read produces identical items), schema version validation (reject version 0, reject version 2), malformed line handling (active store fails with line number, archive skips and warns), items sorted by ID in output, truncated last line in archive skipped gracefully
+- [x] Implement Store in `src/store/mod.rs` — broken into sub-operations:
+  - [x] `with_lock(callback)` — acquire flock, execute callback, release on drop. Provides the lock-load-mutate-save-unlock cycle
+  - [x] `load_active() -> Vec<Item>` — read and parse tasks.jsonl (no lock needed for reads)
+  - [x] `save_active(items: &[Item])` — atomic write of sorted items to tasks.jsonl (must be called under lock)
+  - [x] `load_archive_ids() -> HashSet<String>` — scan archive.jsonl line-by-line extracting only IDs (fast path for collision checks and dep resolution)
+  - [x] `load_archive_item(id: &str) -> Option<Item>` — scan archive for a specific item (for `tg show` fallback)
+  - [x] `load_all_archive() -> Vec<Item>` — full archive deserialization (for `tg list --status done`)
+  - [x] `all_known_ids() -> HashSet<String>` — union of active IDs + archive IDs
+  - [x] `append_to_archive(item: &Item)` — append single item to archive.jsonl + fsync (for `tg done`)
 
 *CLI Layer:*
 
-- [ ] Implement clap args in `src/cli/args.rs`: top-level `Cli` struct with global `--json` and `--verbose` flags, `Commands` enum with `Init` variant (with `--force` flag)
-- [ ] Implement output formatter in `src/cli/output.rs`: JSON mode serializes to stdout via serde_json (route all output through a single function that checks `--json` flag — never use `println!` directly in command handlers). Human mode prints basic text. Error JSON `{"error": "...", "exit_code": N}` to stderr when `--json` set
-- [ ] Implement `tg init` handler in `src/cli/commands/init.rs`: create `.task-golem/` dir, write empty `tasks.jsonl` and `archive.jsonl` with `{"schema_version":1}` header, create empty `tasks.lock`. Check for existing dir (exit 1 unless `--force`). When `--force` on existing project: warn about data loss on stderr before overwriting. Output JSON `{"initialized": true, "path": ".task-golem/"}` or human message
-- [ ] Wire up CLI dispatch in `src/cli/mod.rs` and `src/main.rs`: parse args, dispatch to init handler, format output, set process exit code
+- [x] Implement clap args in `src/cli/args.rs`: top-level `Cli` struct with global `--json` and `--verbose` flags, `Commands` enum with `Init` variant (with `--force` flag)
+- [x] Implement output formatter in `src/cli/output.rs`: JSON mode serializes to stdout via serde_json (route all output through a single function that checks `--json` flag — never use `println!` directly in command handlers). Human mode prints basic text. Error JSON `{"error": "...", "exit_code": N}` to stderr when `--json` set
+- [x] Implement `tg init` handler in `src/cli/commands/init.rs`: create `.task-golem/` dir, write empty `tasks.jsonl` and `archive.jsonl` with `{"schema_version":1}` header, create empty `tasks.lock`. Check for existing dir (exit 1 unless `--force`). When `--force` on existing project: warn about data loss on stderr before overwriting. Output JSON `{"initialized": true, "path": ".task-golem/"}` or human message
+- [x] Wire up CLI dispatch in `src/cli/mod.rs` and `src/main.rs`: parse args, dispatch to init handler, format output, set process exit code
 
 *Test Infrastructure:*
 
-- [ ] Create test helpers in `tests/common/mod.rs`: `TestProject` struct that creates a temp dir (auto-cleaned on drop, including on test failure for CI disk hygiene), runs `tg init`, provides methods to run `tg` commands and parse JSON output. `TestProject::new()` should return `Result` not panic. Concurrent tests using `TestProject` get isolated temp dirs (no path collisions)
-- [ ] Write integration tests for `tg init`: creates directory and files, schema headers correct, `--force` reinitializes with data-loss warning on stderr (check via `predicates::str::contains`), error on existing without `--force` (exit code 1), `--json` output matches expected schema
+- [x] Create test helpers in `tests/common/mod.rs`: `TestProject` struct that creates a temp dir (auto-cleaned on drop, including on test failure for CI disk hygiene), runs `tg init`, provides methods to run `tg` commands and parse JSON output. `TestProject::new()` should return `Result` not panic. Concurrent tests using `TestProject` get isolated temp dirs (no path collisions)
+- [x] Write integration tests for `tg init`: creates directory and files, schema headers correct, `--force` reinitializes with data-loss warning on stderr (check via `predicates::str::contains`), error on existing without `--force` (exit code 1), `--json` output matches expected schema
 
 **Verification:**
 
-- [ ] `cargo build --release` succeeds with no warnings
-- [ ] `cargo test` passes all unit and integration tests
-- [ ] `cargo clippy -- -D warnings` passes (run incrementally during development, not only at phase end)
-- [ ] Serde PoC passes: byte-identical round-trip with null fields and nested extension ordering
-- [ ] `tg init` creates a valid `.task-golem/` directory with `tasks.jsonl`, `archive.jsonl`, and `tasks.lock`
-- [ ] `tg init --json` produces `{"initialized": true, "path": ".task-golem/"}`
-- [ ] `tg init` on existing project exits with code 1; `tg init --force` succeeds with warning on stderr
-- [ ] Cross-process lock PoC passes: child holding lock prevents parent from acquiring
+- [x] `cargo build --release` succeeds with no warnings
+- [x] `cargo test` passes all unit and integration tests
+- [x] `cargo clippy -- -D warnings` passes (run incrementally during development, not only at phase end)
+- [x] Serde PoC passes: byte-identical round-trip with null fields and nested extension ordering
+- [x] `tg init` creates a valid `.task-golem/` directory with `tasks.jsonl`, `archive.jsonl`, and `tasks.lock`
+- [x] `tg init --json` produces `{"initialized": true, "path": ".task-golem/"}`
+- [x] `tg init` on existing project exits with code 1; `tg init --force` succeeds with warning on stderr
+- [x] Cross-process lock PoC passes: child holding lock prevents parent from acquiring
 
 **Commit:** `[TG-001][P1] Feature: Project foundation — data model, persistence layer, tg init`
 
@@ -181,6 +181,9 @@ The serde PoC is the single most important task in Phase 1. If `#[serde(flatten)
 The schema version check in v1 only validates version == 1 and rejects anything else. No auto-migration transform is implemented — the scaffolding (version check, reject-if-newer) is in place for future use. Actual migration logic will be added when schema version 2 is defined.
 
 **Followups:**
+
+- `#[serde(flatten)]` field-name collision: extension keys that collide with known Item field names (e.g., "id", "title") could cause unpredictable serde behavior. Phase 2's `x-` prefix validation in `src/model/extensions.rs` will enforce the convention, but no runtime validation exists at deserialization time. Consider adding a post-deserialization check in a future phase.
+- `append_to_archive` now defensively writes the schema header if the file is missing, but the primary guarantee is that `tg init` creates the file. If further resilience is needed, `tg doctor` (Phase 4) can detect and repair headerless archives.
 
 ---
 
@@ -536,6 +539,7 @@ This phase is optional — the tool is fully functional after Phase 4. Every ite
 
 | Phase | Status | Commit | Notes |
 |-------|--------|--------|-------|
+| 1 | complete | `[TG-001][P1]` | 37 unit tests + 6 integration tests + 2 lock PoC tests. Serde PoC passed. All verification items green. |
 
 ## Followups Summary
 
