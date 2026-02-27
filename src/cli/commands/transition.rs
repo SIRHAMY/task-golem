@@ -1,14 +1,14 @@
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::id;
-use crate::model::status::Status;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::id;
+use task_golem::model::status::Status;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 /// Result of a transition that may be idempotent.
 enum TransitionResult {
     /// Transition was applied normally.
-    Applied(Box<crate::model::item::Item>),
+    Applied(Box<task_golem::model::item::Item>),
     /// Item was already in the target state — no-op.
     Idempotent(Status),
 }

@@ -3,15 +3,15 @@ use std::collections::HashSet;
 use chrono::Utc;
 
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::deps;
-use crate::model::extensions;
-use crate::model::id;
-use crate::model::item::Item;
-use crate::model::status::Status;
-use crate::store::config::Config;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::deps;
+use task_golem::model::extensions;
+use task_golem::model::id;
+use task_golem::model::item::Item;
+use task_golem::model::status::Status;
+use task_golem::store::config::Config;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 pub fn run(
     json_mode: bool,

@@ -1,11 +1,11 @@
 use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::item::Item;
-use crate::model::status::Status;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::item::Item;
+use task_golem::model::status::Status;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 /// Handle `tg archive [--before DATE]`
 ///
@@ -72,11 +72,11 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
                 let pruned_path = project_dir.join("archive-pruned.jsonl");
                 // Append to existing pruned file if it exists
                 for pruned_item in &pruned {
-                    crate::store::jsonl::append_to_archive(&pruned_path, pruned_item)?;
+                    task_golem::store::jsonl::append_to_archive(&pruned_path, pruned_item)?;
                 }
 
                 // Rewrite archive without pruned items
-                crate::store::jsonl::write_atomic(&store.archive_path(), &keep)?;
+                task_golem::store::jsonl::write_atomic(&store.archive_path(), &keep)?;
             }
         }
 

@@ -6,11 +6,11 @@ use chrono::Utc;
 use serde::Serialize;
 
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::deps;
-use crate::model::item::Item;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::deps;
+use task_golem::model::item::Item;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 #[derive(Debug, Serialize)]
 struct DoctorReport {

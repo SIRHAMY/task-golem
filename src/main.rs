@@ -1,7 +1,4 @@
 mod cli;
-mod errors;
-mod model;
-mod store;
 
 use std::process;
 

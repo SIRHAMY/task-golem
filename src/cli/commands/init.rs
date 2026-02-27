@@ -4,8 +4,8 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::store::jsonl;
+use task_golem::errors::TgError;
+use task_golem::store::jsonl;
 
 const PROJECT_DIR: &str = ".task-golem";
 

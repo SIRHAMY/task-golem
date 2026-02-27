@@ -1,12 +1,12 @@
 use chrono::Utc;
 
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::deps;
-use crate::model::extensions;
-use crate::model::id;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::deps;
+use task_golem::model::extensions;
+use task_golem::model::id;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 #[allow(clippy::too_many_arguments)]
 pub fn run(
@@ -23,7 +23,7 @@ pub fn run(
 ) -> Result<(), TgError> {
     // Validate title if provided
     if let Some(ref t) = title {
-        crate::model::item::Item::validate_title(t)?;
+        task_golem::model::item::Item::validate_title(t)?;
     }
 
     let project_dir = root::find_project_root_from_cwd()?;

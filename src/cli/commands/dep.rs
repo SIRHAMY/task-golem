@@ -1,5 +1,5 @@
 use crate::cli::args::DepAction;
-use crate::errors::TgError;
+use task_golem::errors::TgError;
 
 /// Sugar commands for dependency management. Delegate to edit logic.
 pub fn run(json_mode: bool, action: DepAction) -> Result<(), TgError> {

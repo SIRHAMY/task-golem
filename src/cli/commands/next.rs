@@ -1,8 +1,8 @@
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::deps;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::deps;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 pub fn run(json_mode: bool, verbose: bool) -> Result<(), TgError> {
     let project_dir = root::find_project_root_from_cwd()?;

@@ -1,8 +1,8 @@
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::status::Status;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::status::Status;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 pub fn run(
     json_mode: bool,

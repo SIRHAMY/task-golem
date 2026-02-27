@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use crate::errors::TgError;
 use crate::model::item::Item;
 
+#[derive(Clone)]
 pub struct Store {
     project_dir: PathBuf,
 }
@@ -69,7 +70,6 @@ impl Store {
     }
 
     /// Union of active IDs + archive IDs.
-    #[allow(dead_code)] // Used in later phases
     pub fn all_known_ids(&self) -> Result<HashSet<String>, TgError> {
         let active = self.load_active()?;
         let archive_ids = self.load_archive_ids()?;

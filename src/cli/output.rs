@@ -4,8 +4,8 @@ use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
 use serde::Serialize;
 
-use crate::model::item::Item;
-use crate::model::status::Status;
+use task_golem::model::item::Item;
+use task_golem::model::status::Status;
 
 /// Output a value as JSON to stdout.
 pub fn print_json<T: Serialize>(value: &T) {
@@ -33,7 +33,7 @@ pub fn output<T: Serialize>(json_mode: bool, value: &T, human_message: &str) {
 }
 
 /// Output an error — JSON to stderr if json_mode, otherwise plain text to stderr.
-pub fn print_error(json_mode: bool, error: &crate::errors::TgError) {
+pub fn print_error(json_mode: bool, error: &task_golem::errors::TgError) {
     let stderr = io::stderr();
     let mut handle = stderr.lock();
     if json_mode {

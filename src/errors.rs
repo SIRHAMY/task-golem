@@ -5,7 +5,6 @@ use serde::Serialize;
 use crate::model::status::Status;
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)] // Variants used in later phases
 pub enum TgError {
     // User errors (exit code 1)
     #[error("Item not found: {0}")]
@@ -78,7 +77,6 @@ impl TgError {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // Used in later phases
 pub struct JsonError {
     pub error: String,
     pub exit_code: i32,

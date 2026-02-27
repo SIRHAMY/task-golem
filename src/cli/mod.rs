@@ -2,7 +2,7 @@ pub mod args;
 pub mod commands;
 pub mod output;
 
-use crate::errors::TgError;
+use task_golem::errors::TgError;
 
 use self::args::{Cli, Commands};
 

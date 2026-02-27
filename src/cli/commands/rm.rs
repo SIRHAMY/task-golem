@@ -1,10 +1,10 @@
 use serde::Serialize;
 
 use crate::cli::output;
-use crate::errors::TgError;
-use crate::model::id;
-use crate::store::root;
-use crate::store::Store;
+use task_golem::errors::TgError;
+use task_golem::model::id;
+use task_golem::store::root;
+use task_golem::store::Store;
 
 #[derive(Debug, Serialize)]
 struct RmOutput {
