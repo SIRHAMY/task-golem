@@ -52,10 +52,7 @@ fn dep_add_rejects_cycle() {
 
     // Adding A -> B would create cycle: A -> B -> A
     let output = project.run_tg(&["--json", "dep", "add", a_id, b_id]);
-    assert!(
-        !output.status.success(),
-        "Expected cycle rejection"
-    );
+    assert!(!output.status.success(), "Expected cycle rejection");
 }
 
 #[test]

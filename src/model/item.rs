@@ -224,7 +224,12 @@ mod tests {
 
         // Nested extension object keys should be alphabetically ordered
         let agent = &parsed["x-agent"];
-        let keys: Vec<&str> = agent.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        let keys: Vec<&str> = agent
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(|k| k.as_str())
+            .collect();
         assert_eq!(keys, vec!["name", "version"]); // alphabetical (BTreeMap)
     }
 

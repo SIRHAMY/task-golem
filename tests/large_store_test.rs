@@ -45,22 +45,19 @@ fn large_store_2000_active_items() -> Result<(), Box<dyn std::error::Error>> {
     // Verify list works
     let output = project.run_tg(&["--json", "list"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json.as_array().unwrap().len(), 2000);
 
     // Verify ready works
     let output = project.run_tg(&["--json", "ready"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json.as_array().unwrap().len(), 2000);
 
     // Verify next works
     let output = project.run_tg(&["--json", "next"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert!(json["id"].is_string());
 
     // Verify show works on a specific item
@@ -86,8 +83,7 @@ fn large_store_5000_archive_items() -> Result<(), Box<dyn std::error::Error>> {
     // Verify list --status done loads all archive items
     let output = project.run_tg(&["--json", "list", "--status", "done"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json.as_array().unwrap().len(), 5000);
 
     // Verify show works on an archived item
@@ -97,8 +93,7 @@ fn large_store_5000_archive_items() -> Result<(), Box<dyn std::error::Error>> {
     // Verify dump includes all items
     let output = project.run_tg(&["dump"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json["archive"].as_array().unwrap().len(), 5000);
 
     Ok(())
@@ -121,22 +116,19 @@ fn large_store_mixed_2000_active_5000_archive() -> Result<(), Box<dyn std::error
     // Adding a new item should work even with large existing stores
     let output = project.run_tg(&["--json", "add", "New item"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert!(json["id"].is_string());
 
     // Ready queue should include all 2000 todo items (no deps)
     let output = project.run_tg(&["--json", "ready", "--limit", "10"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json.as_array().unwrap().len(), 10);
 
     // Dump should include all items
     let output = project.run_tg(&["dump"]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     // 2000 + 1 new item
     assert_eq!(json["active"].as_array().unwrap().len(), 2001);
     assert_eq!(json["archive"].as_array().unwrap().len(), 5000);

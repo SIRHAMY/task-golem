@@ -9,14 +9,14 @@ pub fn run(json_mode: bool, action: DepAction) -> Result<(), TgError> {
             super::edit::run(
                 json_mode,
                 id,
-                None,           // title
-                None,           // priority
-                None,           // description
+                None,             // title
+                None,             // priority
+                None,             // description
                 vec![depends_on], // add_deps
-                vec![],         // rm_deps
-                vec![],         // add_tags
-                vec![],         // rm_tags
-                vec![],         // sets
+                vec![],           // rm_deps
+                vec![],           // add_tags
+                vec![],           // rm_tags
+                vec![],           // sets
             )
         }
         DepAction::Rm { id, dep_id } => {

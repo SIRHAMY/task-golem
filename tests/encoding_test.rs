@@ -108,11 +108,13 @@ fn utf8_in_description_and_tags() -> Result<(), Box<dyn std::error::Error>> {
     let id = json["id"].as_str().unwrap();
     let shown = project.run_tg_json(&["show", id]);
     assert_eq!(shown["description"], "🎯 Goal: fix the 🐛");
-    assert!(shown["tags"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|t| t == "バグ修正"));
+    assert!(
+        shown["tags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t == "バグ修正")
+    );
 
     Ok(())
 }

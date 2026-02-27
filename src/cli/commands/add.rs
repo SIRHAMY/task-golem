@@ -9,9 +9,9 @@ use task_golem::model::extensions;
 use task_golem::model::id;
 use task_golem::model::item::Item;
 use task_golem::model::status::Status;
+use task_golem::store::Store;
 use task_golem::store::config::Config;
 use task_golem::store::root;
-use task_golem::store::Store;
 
 pub fn run(
     json_mode: bool,
@@ -51,8 +51,7 @@ pub fn run(
             if resolved_deps.contains(&resolved) {
                 continue; // skip duplicate deps
             }
-            let warnings =
-                deps::validate_dep(&new_id, &resolved, &active_id_set, &archive_ids)?;
+            let warnings = deps::validate_dep(&new_id, &resolved, &active_id_set, &archive_ids)?;
             for w in &warnings {
                 eprintln!("{}", w);
             }

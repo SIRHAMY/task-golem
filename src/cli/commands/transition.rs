@@ -2,8 +2,8 @@ use crate::cli::output;
 use task_golem::errors::TgError;
 use task_golem::model::id;
 use task_golem::model::status::Status;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 /// Result of a transition that may be idempotent.
 enum TransitionResult {
@@ -19,7 +19,10 @@ fn output_transition(json_mode: bool, result: &TransitionResult, action: &str) {
             if json_mode {
                 output::print_json(item.as_ref());
             } else {
-                output::print_human(&format!("{}: {} - {} [{}]", action, item.id, item.title, item.status));
+                output::print_human(&format!(
+                    "{}: {} - {} [{}]",
+                    action, item.id, item.title, item.status
+                ));
             }
         }
         TransitionResult::Idempotent(status) => {
@@ -140,10 +143,7 @@ pub fn run_done(json_mode: bool, id_input: String) -> Result<(), TgError> {
             if json_mode {
                 output::print_json(item);
             } else {
-                output::print_human(&format!(
-                    "Done: {} - {} [archived]",
-                    item.id, item.title
-                ));
+                output::print_human(&format!("Done: {} - {} [archived]", item.id, item.title));
             }
         }
         TransitionResult::Idempotent(_) => {
@@ -205,11 +205,7 @@ pub fn run_todo(json_mode: bool, id_input: String) -> Result<(), TgError> {
 }
 
 /// Handle `tg block <id> [--reason <reason>]`
-pub fn run_block(
-    json_mode: bool,
-    id_input: String,
-    reason: Option<String>,
-) -> Result<(), TgError> {
+pub fn run_block(json_mode: bool, id_input: String, reason: Option<String>) -> Result<(), TgError> {
     let project_dir = root::find_project_root_from_cwd()?;
     let store = Store::new(project_dir);
 

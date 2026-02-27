@@ -11,11 +11,7 @@ const ARCHIVE_FILE: &str = ".task-golem/archive.jsonl";
 /// Only stages these two files -- does not stage arbitrary paths.
 /// `project_dir` is the repository root (parent of `.task-golem/`).
 pub fn stage_self(project_dir: &Path) -> Result<(), TgError> {
-    run_git_command(
-        &["add", "--", TASKS_FILE, ARCHIVE_FILE],
-        project_dir,
-    )
-    .map(|_| ())
+    run_git_command(&["add", "--", TASKS_FILE, ARCHIVE_FILE], project_dir).map(|_| ())
 }
 
 /// Commit all currently-staged changes and return the new commit SHA.

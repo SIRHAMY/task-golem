@@ -31,9 +31,8 @@ pub fn read_active(path: &Path) -> Result<Vec<Item>, TgError> {
         None => return Ok(vec![]), // Empty file
     };
 
-    let header: SchemaHeader = serde_json::from_str(&header_line).map_err(|e| {
-        TgError::StorageCorruption(format!("Invalid schema header: {}", e))
-    })?;
+    let header: SchemaHeader = serde_json::from_str(&header_line)
+        .map_err(|e| TgError::StorageCorruption(format!("Invalid schema header: {}", e)))?;
 
     if header.schema_version != CURRENT_SCHEMA_VERSION {
         return Err(TgError::SchemaVersionUnsupported {
@@ -80,9 +79,8 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
         None => return Ok(vec![]),
     };
 
-    let header: SchemaHeader = serde_json::from_str(&header_line).map_err(|e| {
-        TgError::StorageCorruption(format!("Invalid archive schema header: {}", e))
-    })?;
+    let header: SchemaHeader = serde_json::from_str(&header_line)
+        .map_err(|e| TgError::StorageCorruption(format!("Invalid archive schema header: {}", e)))?;
 
     if header.schema_version != CURRENT_SCHEMA_VERSION {
         return Err(TgError::SchemaVersionUnsupported {
@@ -96,11 +94,7 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
         let line = match line_result {
             Ok(l) => l,
             Err(e) => {
-                eprintln!(
-                    "Warning: could not read archive line {}: {}",
-                    i + 2,
-                    e
-                );
+                eprintln!("Warning: could not read archive line {}: {}", i + 2, e);
                 continue;
             }
         };
@@ -118,19 +112,11 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
                     );
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Warning: skipping archive item on line {}: {}",
-                        i + 2,
-                        e
-                    );
+                    eprintln!("Warning: skipping archive item on line {}: {}", i + 2, e);
                 }
             },
             Err(e) => {
-                eprintln!(
-                    "Warning: skipping malformed archive line {}: {}",
-                    i + 2,
-                    e
-                );
+                eprintln!("Warning: skipping malformed archive line {}: {}", i + 2, e);
             }
         }
     }
@@ -141,11 +127,11 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
 /// Write items to a JSONL file atomically (tempfile → fsync → rename).
 /// Items are sorted by ID for deterministic output.
 pub fn write_atomic(path: &Path, items: &[Item]) -> Result<(), TgError> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| TgError::IoError(std::io::Error::other(
+    let dir = path.parent().ok_or_else(|| {
+        TgError::IoError(std::io::Error::other(
             "Cannot determine parent directory for atomic write",
-        )))?;
+        ))
+    })?;
 
     let mut tmp = tempfile::NamedTempFile::new_in(dir).map_err(TgError::IoError)?;
 
@@ -215,7 +201,12 @@ pub fn append_to_archive(path: &Path, item: &Item) -> Result<(), TgError> {
         writeln!(file).map_err(TgError::IoError)?;
     }
 
-    writeln!(file, "{}", serde_json::to_string(item).expect("Item serialization cannot fail")).map_err(TgError::IoError)?;
+    writeln!(
+        file,
+        "{}",
+        serde_json::to_string(item).expect("Item serialization cannot fail")
+    )
+    .map_err(TgError::IoError)?;
     file.sync_all().map_err(TgError::IoError)?;
 
     Ok(())

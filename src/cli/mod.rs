@@ -30,7 +30,15 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             rm_tags,
             sets,
         } => commands::edit::run(
-            cli.json, id, title, priority, description, add_deps, rm_deps, add_tags, rm_tags,
+            cli.json,
+            id,
+            title,
+            priority,
+            description,
+            add_deps,
+            rm_deps,
+            add_tags,
+            rm_tags,
             sets,
         ),
         Commands::Rm {

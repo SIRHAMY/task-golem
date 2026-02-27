@@ -151,8 +151,7 @@ fn transition_blocked_to_blocked_idempotent() -> Result<(), Box<dyn std::error::
 
     let output = project.run_tg(&["--json", "block", id]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json["idempotent"], true);
     assert_eq!(json["previous_state"], "blocked");
     Ok(())
@@ -277,7 +276,10 @@ fn same_agent_reclaim_updates_claimed_at() -> Result<(), Box<dyn std::error::Err
 
     // claimed_at should have been updated
     let second_at = second["claimed_at"].as_str().unwrap();
-    assert_ne!(second_at, first_at, "claimed_at should be updated on re-claim");
+    assert_ne!(
+        second_at, first_at,
+        "claimed_at should be updated on re-claim"
+    );
     Ok(())
 }
 
@@ -317,7 +319,10 @@ fn claim_visible_in_list() -> Result<(), Box<dyn std::error::Error>> {
 
     let list = project.run_tg_json(&["list"]);
     let items = list.as_array().unwrap();
-    let item = items.iter().find(|i| i["id"].as_str().unwrap() == id).unwrap();
+    let item = items
+        .iter()
+        .find(|i| i["id"].as_str().unwrap() == id)
+        .unwrap();
     assert_eq!(item["claimed_by"], "agent-1");
     assert!(!item["claimed_at"].is_null());
     Ok(())
@@ -543,16 +548,34 @@ fn validate_item_schema(item: &serde_json::Value) {
     assert!(item["status"].is_string(), "status must be string");
     assert!(item["priority"].is_number(), "priority must be number");
     assert!(item["tags"].is_array(), "tags must be array");
-    assert!(item["dependencies"].is_array(), "dependencies must be array");
+    assert!(
+        item["dependencies"].is_array(),
+        "dependencies must be array"
+    );
     assert!(item["created_at"].is_string(), "created_at must be string");
     assert!(item["updated_at"].is_string(), "updated_at must be string");
 
     // Nullable fields must be present (not omitted)
-    assert!(item.get("description").is_some(), "description must be present");
-    assert!(item.get("blocked_reason").is_some(), "blocked_reason must be present");
-    assert!(item.get("blocked_from_status").is_some(), "blocked_from_status must be present");
-    assert!(item.get("claimed_by").is_some(), "claimed_by must be present");
-    assert!(item.get("claimed_at").is_some(), "claimed_at must be present");
+    assert!(
+        item.get("description").is_some(),
+        "description must be present"
+    );
+    assert!(
+        item.get("blocked_reason").is_some(),
+        "blocked_reason must be present"
+    );
+    assert!(
+        item.get("blocked_from_status").is_some(),
+        "blocked_from_status must be present"
+    );
+    assert!(
+        item.get("claimed_by").is_some(),
+        "claimed_by must be present"
+    );
+    assert!(
+        item.get("claimed_at").is_some(),
+        "claimed_at must be present"
+    );
 
     // ID format
     let id = item["id"].as_str().unwrap();

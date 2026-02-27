@@ -28,9 +28,8 @@ impl Config {
         }
 
         let content = fs::read_to_string(&config_path).map_err(TgError::IoError)?;
-        let config: Config = serde_yaml::from_str(&content).map_err(|e| {
-            TgError::InvalidInput(format!("Invalid config.yaml: {}", e))
-        })?;
+        let config: Config = serde_yaml::from_str(&content)
+            .map_err(|e| TgError::InvalidInput(format!("Invalid config.yaml: {}", e)))?;
 
         Ok(config)
     }

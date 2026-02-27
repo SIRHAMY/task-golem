@@ -14,7 +14,10 @@ pub enum TgError {
     InvalidTransition { from: Status, to: Status },
 
     #[error("Ambiguous ID prefix '{prefix}': matches {matches:?}")]
-    AmbiguousId { prefix: String, matches: Vec<String> },
+    AmbiguousId {
+        prefix: String,
+        matches: Vec<String>,
+    },
 
     #[error("Dependency cycle detected: {0}")]
     CycleDetected(String),

@@ -2,7 +2,7 @@ use std::fs;
 use std::process::Command;
 
 use assert_cmd::cargo::cargo_bin;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 fn generate_items_jsonl(n: usize) -> String {
     let mut lines = Vec::new();

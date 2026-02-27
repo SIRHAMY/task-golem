@@ -137,12 +137,8 @@ fn validate_item_schema(json: &serde_json::Value) {
     );
 
     // Timestamps
-    assert!(
-        chrono::DateTime::parse_from_rfc3339(json["created_at"].as_str().unwrap()).is_ok()
-    );
-    assert!(
-        chrono::DateTime::parse_from_rfc3339(json["updated_at"].as_str().unwrap()).is_ok()
-    );
+    assert!(chrono::DateTime::parse_from_rfc3339(json["created_at"].as_str().unwrap()).is_ok());
+    assert!(chrono::DateTime::parse_from_rfc3339(json["updated_at"].as_str().unwrap()).is_ok());
 
     // Null fields present
     assert!(json.get("description").is_some());

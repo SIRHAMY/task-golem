@@ -77,10 +77,7 @@ fn doctor_detects_dangling_dep() {
     // Manually edit the tasks.jsonl to add a fake dep
     let tasks_path = project.project_dir().join("tasks.jsonl");
     let content = fs::read_to_string(&tasks_path).unwrap();
-    let updated = content.replace(
-        "\"dependencies\":[]",
-        "\"dependencies\":[\"tg-nonex\"]",
-    );
+    let updated = content.replace("\"dependencies\":[]", "\"dependencies\":[\"tg-nonex\"]");
     fs::write(&tasks_path, updated).unwrap();
 
     let report = project.run_tg_json(&["doctor"]);
@@ -133,7 +130,11 @@ fn doctor_detects_cycle() {
         .iter()
         .filter(|i| i["type"] == "dependency_cycle")
         .collect();
-    assert!(!cycles.is_empty(), "Expected cycle issue, got: {:?}", issues);
+    assert!(
+        !cycles.is_empty(),
+        "Expected cycle issue, got: {:?}",
+        issues
+    );
 }
 
 #[test]
@@ -163,19 +164,12 @@ fn doctor_fix_removes_duplicates_and_creates_backup() {
     let backups: Vec<_> = fs::read_dir(&project_dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_name()
-                .to_string_lossy()
-                .contains(".bak.")
-        })
+        .filter(|e| e.file_name().to_string_lossy().contains(".bak."))
         .collect();
     assert!(
         backups.len() >= 2,
         "Expected at least 2 backup files, found: {:?}",
-        backups
-            .iter()
-            .map(|b| b.file_name())
-            .collect::<Vec<_>>()
+        backups.iter().map(|b| b.file_name()).collect::<Vec<_>>()
     );
 
     // After fix, item should be removed from active (archive is authoritative)
@@ -204,10 +198,7 @@ fn doctor_fix_removes_dangling_deps() {
     // Inject a dangling dep
     let tasks_path = project.project_dir().join("tasks.jsonl");
     let content = fs::read_to_string(&tasks_path).unwrap();
-    let updated = content.replace(
-        "\"dependencies\":[]",
-        "\"dependencies\":[\"tg-nonex\"]",
-    );
+    let updated = content.replace("\"dependencies\":[]", "\"dependencies\":[\"tg-nonex\"]");
     fs::write(&tasks_path, updated).unwrap();
 
     // Run doctor --fix
@@ -243,9 +234,7 @@ fn doctor_detects_invalid_status() {
     // OR detect it via the invalid_status check
     let relevant: Vec<_> = issues
         .iter()
-        .filter(|i| {
-            i["type"] == "invalid_status" || i["type"] == "jsonl_syntax"
-        })
+        .filter(|i| i["type"] == "invalid_status" || i["type"] == "jsonl_syntax")
         .collect();
     assert!(
         !relevant.is_empty(),

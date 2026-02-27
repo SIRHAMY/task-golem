@@ -18,9 +18,7 @@ fn store_round_trip() {
     let store = Store::new(project_dir);
 
     // Save empty, then load
-    store
-        .with_lock(|s| s.save_active(&[]))
-        .unwrap();
+    store.with_lock(|s| s.save_active(&[])).unwrap();
 
     let items = store.load_active().unwrap();
     assert!(items.is_empty());
@@ -44,9 +42,7 @@ fn store_round_trip() {
         extensions: std::collections::BTreeMap::new(),
     };
 
-    store
-        .with_lock(|s| s.save_active(&[item.clone()]))
-        .unwrap();
+    store.with_lock(|s| s.save_active(&[item.clone()])).unwrap();
 
     let loaded = store.load_active().unwrap();
     assert_eq!(loaded.len(), 1);
@@ -107,9 +103,7 @@ fn all_known_ids_includes_active_and_archive() {
         extensions: std::collections::BTreeMap::new(),
     };
 
-    store
-        .with_lock(|s| s.save_active(&[active_item]))
-        .unwrap();
+    store.with_lock(|s| s.save_active(&[active_item])).unwrap();
 
     store.append_to_archive(&archive_item).unwrap();
 
@@ -159,9 +153,7 @@ fn store_clone_works() {
     let store_clone = store.clone();
 
     // Both should be able to save/load independently
-    store
-        .with_lock(|s| s.save_active(&[]))
-        .unwrap();
+    store.with_lock(|s| s.save_active(&[])).unwrap();
 
     let items = store_clone.load_active().unwrap();
     assert!(items.is_empty());

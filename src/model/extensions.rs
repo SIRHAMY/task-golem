@@ -122,10 +122,7 @@ pub fn set_nested(
 }
 
 /// Delete a key at a dot-path and recursively clean up empty parent objects.
-pub fn delete_nested(
-    extensions: &mut BTreeMap<String, serde_json::Value>,
-    segments: &[String],
-) {
+pub fn delete_nested(extensions: &mut BTreeMap<String, serde_json::Value>, segments: &[String]) {
     assert!(!segments.is_empty());
     if segments.len() == 1 {
         extensions.remove(&segments[0]);
@@ -309,10 +306,7 @@ mod tests {
     #[test]
     fn delete_nested_partial_cleanup() {
         let mut ext = BTreeMap::new();
-        ext.insert(
-            "x-foo".into(),
-            serde_json::json!({"bar": 1, "baz": 2}),
-        );
+        ext.insert("x-foo".into(), serde_json::json!({"bar": 1, "baz": 2}));
         delete_nested(&mut ext, &["x-foo".into(), "bar".into()]);
         // Parent still has "baz", so not cleaned up
         assert_eq!(ext["x-foo"], serde_json::json!({"baz": 2}));

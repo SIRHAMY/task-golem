@@ -18,11 +18,7 @@ fn add_json_output_schema() {
     let json = proj.run_tg_json(&["add", "Test task"]);
     // Verify required fields
     let id = json["id"].as_str().unwrap();
-    assert!(
-        id.starts_with("tg-"),
-        "ID should start with tg-: {}",
-        id
-    );
+    assert!(id.starts_with("tg-"), "ID should start with tg-: {}", id);
     assert_eq!(id.len(), 8, "ID should be 8 chars: {}", id);
     assert!(
         id[3..].chars().all(|c| c.is_ascii_hexdigit()),

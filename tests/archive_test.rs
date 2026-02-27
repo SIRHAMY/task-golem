@@ -33,7 +33,13 @@ fn archive_recovers_done_items_from_active() -> Result<(), Box<dyn std::error::E
     // Run archive to recover
     let json = project.run_tg_json(&["archive"]);
     assert_eq!(json["recovered"], 1);
-    assert!(json["recovered_ids"].as_array().unwrap().iter().any(|v| v.as_str().unwrap() == id));
+    assert!(
+        json["recovered_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v.as_str().unwrap() == id)
+    );
 
     // Verify the item is now in archive and not in active
     let list = project.run_tg_json(&["list"]);
@@ -68,8 +74,10 @@ fn archive_prune_before_date() -> Result<(), Box<dyn std::error::Error>> {
         if line.contains(&id1) {
             let parsed: serde_json::Value = serde_json::from_str(line).unwrap();
             let old_date = parsed["updated_at"].as_str().unwrap().to_string();
-            let modified_line =
-                line.replace(&format!("\"updated_at\":\"{}\"", old_date), "\"updated_at\":\"2020-01-01T00:00:00Z\"");
+            let modified_line = line.replace(
+                &format!("\"updated_at\":\"{}\"", old_date),
+                "\"updated_at\":\"2020-01-01T00:00:00Z\"",
+            );
             new_lines.push(modified_line);
         } else {
             new_lines.push(line.to_string());
@@ -80,7 +88,13 @@ fn archive_prune_before_date() -> Result<(), Box<dyn std::error::Error>> {
     // Run archive with --before to prune old entries
     let json = project.run_tg_json(&["archive", "--before", "2025-01-01"]);
     assert_eq!(json["pruned"], 1);
-    assert!(json["pruned_ids"].as_array().unwrap().iter().any(|v| v.as_str().unwrap() == id1));
+    assert!(
+        json["pruned_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v.as_str().unwrap() == id1)
+    );
 
     // Verify pruned items went to archive-pruned.jsonl
     let pruned_path = project.path().join(".task-golem/archive-pruned.jsonl");

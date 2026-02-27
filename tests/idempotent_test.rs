@@ -11,8 +11,7 @@ fn idempotent_done_on_archived_item() -> Result<(), Box<dyn std::error::Error>> 
     // First done — normal transition
     let output = project.run_tg(&["--json", "done", id]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     // Normal done returns the item
     assert!(json["id"].is_string());
     assert_eq!(json["status"], "done");
@@ -20,8 +19,7 @@ fn idempotent_done_on_archived_item() -> Result<(), Box<dyn std::error::Error>> 
     // Second done — idempotent (item already in archive)
     let output = project.run_tg(&["--json", "done", id]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json["idempotent"], true);
     assert_eq!(json["previous_state"], "done");
 
@@ -37,8 +35,7 @@ fn idempotent_todo_on_todo_item() -> Result<(), Box<dyn std::error::Error>> {
     // Item starts as todo — calling todo again should be idempotent
     let output = project.run_tg(&["--json", "todo", id]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json["idempotent"], true);
     assert_eq!(json["previous_state"], "todo");
 
@@ -56,8 +53,7 @@ fn idempotent_do_on_doing_item() -> Result<(), Box<dyn std::error::Error>> {
     // Calling do again without claim should be idempotent
     let output = project.run_tg(&["--json", "do", id]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json["idempotent"], true);
     assert_eq!(json["previous_state"], "doing");
 
@@ -75,8 +71,7 @@ fn idempotent_block_on_blocked_item() -> Result<(), Box<dyn std::error::Error>> 
     // Calling block again should be idempotent
     let output = project.run_tg(&["--json", "block", id]);
     assert!(output.status.success());
-    let json: serde_json::Value =
-        serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
+    let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&output.stdout))?;
     assert_eq!(json["idempotent"], true);
     assert_eq!(json["previous_state"], "blocked");
 

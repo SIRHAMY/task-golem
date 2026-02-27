@@ -9,8 +9,8 @@ use crate::cli::output;
 use task_golem::errors::TgError;
 use task_golem::model::deps;
 use task_golem::model::item::Item;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 #[derive(Debug, Serialize)]
 struct DoctorReport {
@@ -152,10 +152,7 @@ pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
     } else if report.summary.total == 0 {
         output::print_human("No issues found. Store is healthy.");
     } else {
-        output::print_human(&format!(
-            "Found {} issue(s):",
-            report.summary.total
-        ));
+        output::print_human(&format!("Found {} issue(s):", report.summary.total));
         for issue in &report.issues {
             output::print_human(&format!(
                 "  [{}] {}: {}",
@@ -207,10 +204,7 @@ fn check_jsonl_syntax(
                         issues.push(Issue {
                             issue_type: "jsonl_syntax".to_string(),
                             severity: "error".to_string(),
-                            message: format!(
-                                "{}:{}: invalid schema header",
-                                file_name, line_num
-                            ),
+                            message: format!("{}:{}: invalid schema header", file_name, line_num),
                             details: None,
                         });
                     }
@@ -222,10 +216,7 @@ fn check_jsonl_syntax(
                     issues.push(Issue {
                         issue_type: "jsonl_syntax".to_string(),
                         severity: severity.to_string(),
-                        message: format!(
-                            "{}:{}: malformed item line",
-                            file_name, line_num
-                        ),
+                        message: format!("{}:{}: malformed item line", file_name, line_num),
                         details: None,
                     });
                 }
@@ -270,11 +261,7 @@ fn load_items_lenient(path: &std::path::Path) -> Vec<Item> {
     items
 }
 
-fn check_duplicate_ids(
-    active_items: &[Item],
-    archive_items: &[Item],
-    issues: &mut Vec<Issue>,
-) {
+fn check_duplicate_ids(active_items: &[Item], archive_items: &[Item], issues: &mut Vec<Issue>) {
     let mut seen: HashMap<String, Vec<String>> = HashMap::new();
 
     for item in active_items {
@@ -311,11 +298,7 @@ fn check_duplicate_ids(
     }
 }
 
-fn check_items_in_both(
-    active_items: &[Item],
-    archive_items: &[Item],
-    issues: &mut Vec<Issue>,
-) {
+fn check_items_in_both(active_items: &[Item], archive_items: &[Item], issues: &mut Vec<Issue>) {
     let active_ids: HashSet<String> = active_items.iter().map(|i| i.id.clone()).collect();
     let archive_ids: HashSet<String> = archive_items.iter().map(|i| i.id.clone()).collect();
 
@@ -332,11 +315,7 @@ fn check_items_in_both(
     }
 }
 
-fn check_invalid_status(
-    path: &std::path::Path,
-    file_name: &str,
-    issues: &mut Vec<Issue>,
-) {
+fn check_invalid_status(path: &std::path::Path, file_name: &str, issues: &mut Vec<Issue>) {
     if !path.exists() {
         return;
     }

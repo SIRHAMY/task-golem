@@ -5,8 +5,8 @@ use task_golem::errors::TgError;
 use task_golem::model::deps;
 use task_golem::model::extensions;
 use task_golem::model::id;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 #[allow(clippy::too_many_arguments)]
 pub fn run(
@@ -54,8 +54,7 @@ pub fn run(
         }
 
         // Build active_ids set for validation
-        let active_id_set: std::collections::HashSet<String> =
-            active_ids.iter().cloned().collect();
+        let active_id_set: std::collections::HashSet<String> = active_ids.iter().cloned().collect();
 
         // Process dep removals first
         for rm_dep in &rm_deps {
@@ -66,12 +65,8 @@ pub fn run(
         // Process dep additions
         for add_dep in &add_deps {
             let resolved_dep = id::resolve_id(add_dep, &active_ids, &archive_ids, true)?;
-            let warnings = deps::validate_dep(
-                &resolved_id,
-                &resolved_dep,
-                &active_id_set,
-                &archive_ids,
-            )?;
+            let warnings =
+                deps::validate_dep(&resolved_id, &resolved_dep, &active_id_set, &archive_ids)?;
             for w in &warnings {
                 eprintln!("{}", w);
             }

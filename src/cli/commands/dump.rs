@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 
 use task_golem::errors::TgError;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 /// Handle `tg dump [--yaml]`
 ///
@@ -23,14 +23,12 @@ pub fn run(yaml: bool) -> Result<(), TgError> {
     let mut handle = stdout.lock();
 
     if yaml {
-        let yaml_str = serde_yaml::to_string(&output).map_err(|e| {
-            TgError::InvalidInput(format!("Failed to serialize as YAML: {}", e))
-        })?;
+        let yaml_str = serde_yaml::to_string(&output)
+            .map_err(|e| TgError::InvalidInput(format!("Failed to serialize as YAML: {}", e)))?;
         write!(handle, "{}", yaml_str).map_err(TgError::IoError)?;
     } else {
-        let json_str = serde_json::to_string_pretty(&output).map_err(|e| {
-            TgError::InvalidInput(format!("Failed to serialize as JSON: {}", e))
-        })?;
+        let json_str = serde_json::to_string_pretty(&output)
+            .map_err(|e| TgError::InvalidInput(format!("Failed to serialize as JSON: {}", e)))?;
         writeln!(handle, "{}", json_str).map_err(TgError::IoError)?;
     }
 

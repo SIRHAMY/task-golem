@@ -302,8 +302,7 @@ mod tests {
     fn dep_on_nonexistent_warns() {
         let active_ids: HashSet<String> = ["tg-aaa00".to_string()].into();
         let archive_ids = HashSet::new();
-        let warnings =
-            validate_dep("tg-aaa00", "tg-zzz00", &active_ids, &archive_ids).unwrap();
+        let warnings = validate_dep("tg-aaa00", "tg-zzz00", &active_ids, &archive_ids).unwrap();
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("not found"));
     }

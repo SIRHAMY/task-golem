@@ -13,8 +13,24 @@ fn completions_bash_contains_subcommands() -> Result<(), Box<dyn std::error::Err
 
     // Verify all subcommand names appear in the completion script
     let expected_commands = [
-        "init", "add", "list", "show", "edit", "rm", "do", "done", "todo", "block", "unblock",
-        "ready", "next", "dep", "doctor", "archive", "dump", "completions",
+        "init",
+        "add",
+        "list",
+        "show",
+        "edit",
+        "rm",
+        "do",
+        "done",
+        "todo",
+        "block",
+        "unblock",
+        "ready",
+        "next",
+        "dep",
+        "doctor",
+        "archive",
+        "dump",
+        "completions",
     ];
 
     for cmd in &expected_commands {

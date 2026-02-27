@@ -83,10 +83,7 @@ fn ready_dep_on_nonexistent_id_not_ready() -> Result<(), Box<dyn std::error::Err
     // Manually edit JSONL to add a dep on non-existent ID
     let tasks_path = project.project_dir().join("tasks.jsonl");
     let content = std::fs::read_to_string(&tasks_path)?;
-    let modified = content.replace(
-        r#""dependencies":[]"#,
-        r#""dependencies":["tg-zzzzz"]"#,
-    );
+    let modified = content.replace(r#""dependencies":[]"#, r#""dependencies":["tg-zzzzz"]"#);
     std::fs::write(&tasks_path, modified)?;
 
     // Should not be ready (unmet dep), and warning emitted
@@ -95,7 +92,11 @@ fn ready_dep_on_nonexistent_id_not_ready() -> Result<(), Box<dyn std::error::Err
     let ready: serde_json::Value = serde_json::from_str(&stdout)?;
     assert!(ready.as_array().unwrap().is_empty());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("tg-zzzzz"), "Expected warning about tg-zzzzz, got: {}", stderr);
+    assert!(
+        stderr.contains("tg-zzzzz"),
+        "Expected warning about tg-zzzzz, got: {}",
+        stderr
+    );
 
     Ok(())
 }

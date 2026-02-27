@@ -3,8 +3,8 @@ use serde::Serialize;
 use crate::cli::output;
 use task_golem::errors::TgError;
 use task_golem::model::id;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 #[derive(Debug, Serialize)]
 struct RmOutput {

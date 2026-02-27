@@ -88,10 +88,8 @@ fn concurrent_adds() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(items.len(), 5);
 
     // All IDs should be unique
-    let ids: std::collections::HashSet<&str> = items
-        .iter()
-        .map(|i| i["id"].as_str().unwrap())
-        .collect();
+    let ids: std::collections::HashSet<&str> =
+        items.iter().map(|i| i["id"].as_str().unwrap()).collect();
     assert_eq!(ids.len(), 5, "All IDs should be unique");
 
     Ok(())

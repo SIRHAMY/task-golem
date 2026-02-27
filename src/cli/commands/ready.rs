@@ -5,8 +5,8 @@ use task_golem::errors::TgError;
 use task_golem::model::deps;
 use task_golem::model::item::Item;
 use task_golem::model::status::Status;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 pub fn run(
     json_mode: bool,
@@ -42,9 +42,7 @@ pub fn run(
     if let Some(ref stale_str) = include_stale {
         let duration: std::time::Duration = stale_str
             .parse::<humantime::Duration>()
-            .map_err(|e| {
-                TgError::InvalidInput(format!("Invalid duration '{}': {}", stale_str, e))
-            })?
+            .map_err(|e| TgError::InvalidInput(format!("Invalid duration '{}': {}", stale_str, e)))?
             .into();
         let threshold = Utc::now()
             - chrono::Duration::from_std(duration)

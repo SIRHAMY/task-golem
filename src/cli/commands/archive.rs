@@ -4,8 +4,8 @@ use crate::cli::output;
 use task_golem::errors::TgError;
 use task_golem::model::item::Item;
 use task_golem::model::status::Status;
-use task_golem::store::root;
 use task_golem::store::Store;
+use task_golem::store::root;
 
 /// Handle `tg archive [--before DATE]`
 ///
@@ -23,12 +23,7 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
                 date_str, e
             ))
         })?;
-        Some(
-            naive
-                .and_hms_opt(0, 0, 0)
-                .unwrap()
-                .and_utc(),
-        )
+        Some(naive.and_hms_opt(0, 0, 0).unwrap().and_utc())
     } else {
         None
     };

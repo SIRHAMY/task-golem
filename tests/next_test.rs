@@ -38,7 +38,11 @@ fn next_returns_null_when_all_items_blocked_or_doing() {
     project.run_tg(&["do", a_id]);
 
     let next = project.run_tg_json(&["next"]);
-    assert!(next.is_null(), "Expected null when no todo items, got: {}", next);
+    assert!(
+        next.is_null(),
+        "Expected null when no todo items, got: {}",
+        next
+    );
 }
 
 #[test]
