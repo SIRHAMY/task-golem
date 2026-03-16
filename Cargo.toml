@@ -17,7 +17,6 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 fd-lock = "4"
-hex = "0.4"
 humantime = "2"
 owo-colors = { version = "4", features = ["supports-colors"] }
 rand = "0.8"

@@ -21,8 +21,8 @@ fn add_json_output_schema() {
     assert!(id.starts_with("tg-"), "ID should start with tg-: {}", id);
     assert_eq!(id.len(), 8, "ID should be 8 chars: {}", id);
     assert!(
-        id[3..].chars().all(|c| c.is_ascii_hexdigit()),
-        "ID hex part should be valid: {}",
+        id[3..].chars().all(|c| c.is_ascii_alphanumeric()),
+        "ID random part should be alphanumeric: {}",
         id
     );
     assert_eq!(json["status"], "todo");

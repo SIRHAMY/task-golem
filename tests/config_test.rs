@@ -20,18 +20,17 @@ fn custom_prefix_produces_matching_ids() {
         "Expected ID with prefix 'proj-', got: {}",
         id
     );
-    // Verify hex chars
-    let hex_part = &id[5..];
+    let random_part = &id[5..];
     assert_eq!(
-        hex_part.len(),
+        random_part.len(),
         5,
-        "Expected 5 hex chars after prefix, got: {}",
-        hex_part
+        "Expected 5 chars after prefix, got: {}",
+        random_part
     );
     assert!(
-        hex_part.chars().all(|c| c.is_ascii_hexdigit()),
-        "Expected hex chars, got: {}",
-        hex_part
+        random_part.chars().all(|c| c.is_ascii_alphanumeric()),
+        "Expected alphanumeric chars, got: {}",
+        random_part
     );
 }
 

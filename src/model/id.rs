@@ -3,32 +3,43 @@ use std::collections::HashSet;
 use crate::errors::TgError;
 
 pub const DEFAULT_ID_PREFIX: &str = "tg";
-pub const DEFAULT_ID_HEX_LEN: usize = 5;
+pub const DEFAULT_ID_LEN: usize = 5;
 const MAX_COLLISION_RETRIES: u32 = 10;
 
-/// Generate a new unique ID with the default prefix `tg` and default hex length.
+/// Crockford's Base32 alphabet (lowercase). Excludes i, l, o, u to avoid
+/// confusion with 1, 1, 0, and accidental profanity respectively.
+/// 32 chars = 5 bits per character, so 5 chars gives 32^5 ≈ 33M unique IDs.
+const CROCKFORD_ALPHABET: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
+
+/// Generate a new unique ID with the default prefix `tg` and default ID length.
 ///
 /// Retries up to 10 times on collision with existing IDs.
 #[cfg(test)]
 pub fn generate_id(existing_ids: &HashSet<String>) -> Result<String, TgError> {
-    generate_id_with_prefix(existing_ids, DEFAULT_ID_PREFIX, DEFAULT_ID_HEX_LEN)
+    generate_id_with_prefix(existing_ids, DEFAULT_ID_PREFIX, DEFAULT_ID_LEN)
 }
 
-/// Generate a new unique ID with a custom prefix and hex length.
+/// Generate a new unique ID with a custom prefix and length.
+///
+/// Uses Crockford's Base32 encoding for the random portion, which provides
+/// a human-friendly alphabet that avoids confusable characters (i/l/o/u excluded).
+/// With the default length of 5, this gives ~33M possible IDs per prefix.
 pub fn generate_id_with_prefix(
     existing_ids: &HashSet<String>,
     prefix: &str,
-    hex_len: usize,
+    id_len: usize,
 ) -> Result<String, TgError> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    // Generate enough bytes to cover the requested hex length (2 hex chars per byte)
-    let byte_count = hex_len.div_ceil(2);
 
     for _ in 0..MAX_COLLISION_RETRIES {
-        let bytes: Vec<u8> = (0..byte_count).map(|_| rng.r#gen()).collect();
-        let hex_str = hex::encode(&bytes);
-        let id = format!("{}-{}", prefix, &hex_str[..hex_len]);
+        let random_part: String = (0..id_len)
+            .map(|_| {
+                let idx: usize = rng.gen_range(0..32);
+                CROCKFORD_ALPHABET[idx] as char
+            })
+            .collect();
+        let id = format!("{}-{}", prefix, random_part);
 
         if !existing_ids.contains(&id) {
             return Ok(id);
@@ -90,19 +101,40 @@ pub fn resolve_id(
 mod tests {
     use super::*;
 
+    fn is_crockford_base32(c: char) -> bool {
+        CROCKFORD_ALPHABET.contains(&(c as u8))
+    }
+
     #[test]
     fn generate_id_format() {
         let existing = HashSet::new();
         let id = generate_id(&existing).unwrap();
         assert!(id.starts_with("tg-"), "ID should start with tg-: {}", id);
-        assert_eq!(id.len(), 8, "ID should be 8 chars (tg- + 5 hex): {}", id);
-        // Verify hex chars
-        let hex_part = &id[3..];
+        assert_eq!(id.len(), 8, "ID should be 8 chars (tg- + 5): {}", id);
+        let random_part = &id[3..];
         assert!(
-            hex_part.chars().all(|c| c.is_ascii_hexdigit()),
-            "Hex part should be valid hex: {}",
-            hex_part
+            random_part.chars().all(is_crockford_base32),
+            "Random part should be valid Crockford Base32: {}",
+            random_part
         );
+    }
+
+    #[test]
+    fn generate_id_excludes_confusable_chars() {
+        // Generate many IDs and verify none contain i, l, o, u
+        let existing = HashSet::new();
+        for _ in 0..100 {
+            let id = generate_id(&existing).unwrap();
+            let random_part = &id[3..];
+            assert!(
+                !random_part.contains('i')
+                    && !random_part.contains('l')
+                    && !random_part.contains('o')
+                    && !random_part.contains('u'),
+                "ID should not contain confusable chars (i/l/o/u): {}",
+                id
+            );
+        }
     }
 
     #[test]
@@ -110,7 +142,7 @@ mod tests {
         // Fill with a bunch of IDs but not all possible ones
         let mut existing = HashSet::new();
         for i in 0..100 {
-            existing.insert(format!("tg-{:05x}", i));
+            existing.insert(format!("tg-{:05}", i));
         }
         // Should still find a unique one
         let id = generate_id(&existing).unwrap();
@@ -119,32 +151,29 @@ mod tests {
 
     #[test]
     fn generate_id_collision_exhausted() {
-        // This test verifies the error path. We can't realistically fill all 2^20 IDs,
-        // but we can test the error type by mocking would be too complex.
-        // Instead, we just verify the happy path works and trust the loop logic.
         let existing = HashSet::new();
         assert!(generate_id(&existing).is_ok());
     }
 
     #[test]
-    fn generate_id_custom_hex_len() {
+    fn generate_id_custom_len() {
         let existing = HashSet::new();
         let id = generate_id_with_prefix(&existing, "tg", 8).unwrap();
         assert!(id.starts_with("tg-"), "ID should start with tg-: {}", id);
-        assert_eq!(id.len(), 11, "ID should be 11 chars (tg- + 8 hex): {}", id);
-        let hex_part = &id[3..];
+        assert_eq!(id.len(), 11, "ID should be 11 chars (tg- + 8): {}", id);
+        let random_part = &id[3..];
         assert!(
-            hex_part.chars().all(|c| c.is_ascii_hexdigit()),
-            "Hex part should be valid hex: {}",
-            hex_part
+            random_part.chars().all(is_crockford_base32),
+            "Random part should be valid Crockford Base32: {}",
+            random_part
         );
     }
 
     #[test]
-    fn generate_id_short_hex_len() {
+    fn generate_id_short_len() {
         let existing = HashSet::new();
         let id = generate_id_with_prefix(&existing, "tg", 3).unwrap();
-        assert_eq!(id.len(), 6, "ID should be 6 chars (tg- + 3 hex): {}", id);
+        assert_eq!(id.len(), 6, "ID should be 6 chars (tg- + 3): {}", id);
     }
 
     #[test]

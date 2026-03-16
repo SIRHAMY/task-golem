@@ -57,20 +57,24 @@ fn generate_id_with_custom_prefix() {
     let existing = HashSet::new();
     let id = generate_id_with_prefix(&existing, "WRK", 5).unwrap();
     assert!(id.starts_with("WRK-"), "ID should start with WRK-: {}", id);
-    assert_eq!(id.len(), 9, "ID should be 9 chars (WRK- + 5 hex): {}", id);
+    assert_eq!(id.len(), 9, "ID should be 9 chars (WRK- + 5): {}", id);
 }
 
 #[test]
-fn generate_id_with_custom_hex_len() {
+fn generate_id_with_custom_len() {
     let existing = HashSet::new();
     let id = generate_id_with_prefix(&existing, "WRK", 8).unwrap();
     assert!(id.starts_with("WRK-"), "ID should start with WRK-: {}", id);
-    assert_eq!(id.len(), 12, "ID should be 12 chars (WRK- + 8 hex): {}", id);
-    let hex_part = &id[4..];
+    assert_eq!(id.len(), 12, "ID should be 12 chars (WRK- + 8): {}", id);
+    // Verify no confusable chars (i, l, o, u)
+    let random_part = &id[4..];
     assert!(
-        hex_part.chars().all(|c| c.is_ascii_hexdigit()),
-        "Hex part should be valid hex: {}",
-        hex_part
+        !random_part.contains('i')
+            && !random_part.contains('l')
+            && !random_part.contains('o')
+            && !random_part.contains('u'),
+        "Should not contain confusable chars: {}",
+        random_part
     );
 }
 
