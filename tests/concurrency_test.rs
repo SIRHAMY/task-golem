@@ -2,7 +2,6 @@ mod common;
 
 use std::process::Command;
 
-use assert_cmd::cargo::cargo_bin;
 use common::TestProject;
 
 /// Spawn two processes both trying to `tg do <id> --claim <agent>`.
@@ -16,14 +15,14 @@ fn concurrent_claim_race() -> Result<(), Box<dyn std::error::Error>> {
     let path = project.path().to_path_buf();
 
     // Spawn both processes
-    let child1 = Command::new(cargo_bin("tg"))
+    let child1 = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
         .current_dir(&path)
         .args(["--json", "do", &id, "--claim", "agent-1"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()?;
 
-    let child2 = Command::new(cargo_bin("tg"))
+    let child2 = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
         .current_dir(&path)
         .args(["--json", "do", &id, "--claim", "agent-2"])
         .stdout(std::process::Stdio::piped())
@@ -63,7 +62,7 @@ fn concurrent_adds() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut children = Vec::new();
     for i in 0..5 {
-        let child = Command::new(cargo_bin("tg"))
+        let child = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
             .current_dir(&path)
             .args(["--json", "add", &format!("Concurrent task {}", i)])
             .stdout(std::process::Stdio::piped())

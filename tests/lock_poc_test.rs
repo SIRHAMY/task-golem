@@ -3,8 +3,6 @@ use std::io::{Read, Write};
 use std::process::Command;
 use std::time::Duration;
 
-use assert_cmd::cargo::cargo_bin;
-
 /// Cross-process lock PoC test.
 ///
 /// Spawns a child process that uses fcntl/flock to hold the lock,
@@ -97,7 +95,7 @@ time.sleep(10)"#
 fn init_creates_lockable_file() {
     let tmp = tempfile::tempdir().unwrap();
 
-    let output = Command::new(cargo_bin("tg"))
+    let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
         .current_dir(tmp.path())
         .args(["init"])
         .output()

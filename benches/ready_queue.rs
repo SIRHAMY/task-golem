@@ -1,7 +1,6 @@
 use std::fs;
 use std::process::Command;
 
-use assert_cmd::cargo::cargo_bin;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 fn generate_items_jsonl(n: usize) -> String {
@@ -49,7 +48,7 @@ fn bench_ready_500(c: &mut Criterion) {
 
     c.bench_function("tg ready --json (500 items)", |b| {
         b.iter(|| {
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(tmp.path())
                 .args(["--json", "ready"])
                 .output()
@@ -60,7 +59,7 @@ fn bench_ready_500(c: &mut Criterion) {
 
     c.bench_function("tg list --json (500 items)", |b| {
         b.iter(|| {
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(tmp.path())
                 .args(["--json", "list"])
                 .output()
@@ -71,7 +70,7 @@ fn bench_ready_500(c: &mut Criterion) {
 
     c.bench_function("tg next --json (500 items)", |b| {
         b.iter(|| {
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(tmp.path())
                 .args(["--json", "next"])
                 .output()
@@ -82,7 +81,7 @@ fn bench_ready_500(c: &mut Criterion) {
 
     c.bench_function("tg show --json (500 items)", |b| {
         b.iter(|| {
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(tmp.path())
                 .args(["--json", "show", "tg-000fa"])
                 .output()

@@ -23,7 +23,7 @@ pub fn generate_id_with_prefix(
     use rand::Rng;
     let mut rng = rand::thread_rng();
     // Generate enough bytes to cover the requested hex length (2 hex chars per byte)
-    let byte_count = (hex_len + 1) / 2;
+    let byte_count = hex_len.div_ceil(2);
 
     for _ in 0..MAX_COLLISION_RETRIES {
         let bytes: Vec<u8> = (0..byte_count).map(|_| rng.r#gen()).collect();
@@ -131,12 +131,7 @@ mod tests {
         let existing = HashSet::new();
         let id = generate_id_with_prefix(&existing, "tg", 8).unwrap();
         assert!(id.starts_with("tg-"), "ID should start with tg-: {}", id);
-        assert_eq!(
-            id.len(),
-            11,
-            "ID should be 11 chars (tg- + 8 hex): {}",
-            id
-        );
+        assert_eq!(id.len(), 11, "ID should be 11 chars (tg- + 8 hex): {}", id);
         let hex_part = &id[3..];
         assert!(
             hex_part.chars().all(|c| c.is_ascii_hexdigit()),

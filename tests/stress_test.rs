@@ -2,8 +2,6 @@ mod common;
 
 use std::process::Command;
 
-use assert_cmd::cargo::cargo_bin;
-
 use common::TestProject;
 
 /// Concurrent stress test: 10 processes × 100 operations each.
@@ -21,7 +19,7 @@ fn concurrent_stress_10x100() -> Result<(), Box<dyn std::error::Error>> {
         let handle = std::thread::spawn(move || {
             let mut ids = Vec::new();
             for i in 0..adds_per_process {
-                let output = Command::new(cargo_bin("tg"))
+                let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                     .current_dir(&project_path)
                     .args(["--json", "add", &format!("Task-{}-{}", proc_id, i)])
                     .output()
@@ -73,7 +71,7 @@ fn concurrent_stress_10x100() -> Result<(), Box<dyn std::error::Error>> {
         let project_path = project.path().to_path_buf();
         let id_clone = id.clone();
         let handle = std::thread::spawn(move || {
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(&project_path)
                 .args(["--json", "do", &id_clone])
                 .output()
@@ -96,11 +94,11 @@ fn concurrent_stress_10x100() -> Result<(), Box<dyn std::error::Error>> {
         let id_clone = id.clone();
         let handle = std::thread::spawn(move || {
             // First ensure it's in doing state
-            let _ = Command::new(cargo_bin("tg"))
+            let _ = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(&project_path)
                 .args(["do", &id_clone])
                 .output();
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(&project_path)
                 .args(["--json", "done", &id_clone])
                 .output()
@@ -144,7 +142,7 @@ fn concurrent_claim_stress() -> Result<(), Box<dyn std::error::Error>> {
         let project_path = project.path().to_path_buf();
         let id_clone = id.clone();
         let handle = std::thread::spawn(move || {
-            let output = Command::new(cargo_bin("tg"))
+            let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(&project_path)
                 .args([
                     "--json",

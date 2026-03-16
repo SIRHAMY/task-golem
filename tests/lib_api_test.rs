@@ -65,12 +65,7 @@ fn generate_id_with_custom_hex_len() {
     let existing = HashSet::new();
     let id = generate_id_with_prefix(&existing, "WRK", 8).unwrap();
     assert!(id.starts_with("WRK-"), "ID should start with WRK-: {}", id);
-    assert_eq!(
-        id.len(),
-        12,
-        "ID should be 12 chars (WRK- + 8 hex): {}",
-        id
-    );
+    assert_eq!(id.len(), 12, "ID should be 12 chars (WRK- + 8 hex): {}", id);
     let hex_part = &id[4..];
     assert!(
         hex_part.chars().all(|c| c.is_ascii_hexdigit()),

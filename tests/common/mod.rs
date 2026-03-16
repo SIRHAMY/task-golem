@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use assert_cmd::cargo::cargo_bin;
-
 pub struct TestProject {
     tmp_dir: tempfile::TempDir,
 }
@@ -44,7 +42,7 @@ impl TestProject {
 
     /// Create a Command for running `tg` in this project's directory.
     pub fn tg_cmd(&self) -> Command {
-        let mut cmd = Command::new(cargo_bin("tg"));
+        let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("tg"));
         cmd.current_dir(self.tmp_dir.path());
         cmd
     }
