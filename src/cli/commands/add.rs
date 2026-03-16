@@ -38,7 +38,8 @@ pub fn run(
             all_ids.insert(item.id.clone());
         }
 
-        let new_id = id::generate_id_with_prefix(&all_ids, &config.id_prefix)?;
+        let new_id =
+            id::generate_id_with_prefix(&all_ids, &config.id_prefix, config.id_hex_len)?;
 
         // Build active-only ID set for validate_dep
         let active_ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();

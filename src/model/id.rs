@@ -3,29 +3,32 @@ use std::collections::HashSet;
 use crate::errors::TgError;
 
 pub const DEFAULT_ID_PREFIX: &str = "tg";
-const ID_HEX_LEN: usize = 5;
+pub const DEFAULT_ID_HEX_LEN: usize = 5;
 const MAX_COLLISION_RETRIES: u32 = 10;
 
-/// Generate a new unique ID with the default prefix `tg`.
+/// Generate a new unique ID with the default prefix `tg` and default hex length.
 ///
 /// Retries up to 10 times on collision with existing IDs.
 #[cfg(test)]
 pub fn generate_id(existing_ids: &HashSet<String>) -> Result<String, TgError> {
-    generate_id_with_prefix(existing_ids, DEFAULT_ID_PREFIX)
+    generate_id_with_prefix(existing_ids, DEFAULT_ID_PREFIX, DEFAULT_ID_HEX_LEN)
 }
 
-/// Generate a new unique ID with a custom prefix.
+/// Generate a new unique ID with a custom prefix and hex length.
 pub fn generate_id_with_prefix(
     existing_ids: &HashSet<String>,
     prefix: &str,
+    hex_len: usize,
 ) -> Result<String, TgError> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
+    // Generate enough bytes to cover the requested hex length (2 hex chars per byte)
+    let byte_count = (hex_len + 1) / 2;
 
     for _ in 0..MAX_COLLISION_RETRIES {
-        let bytes: [u8; 3] = rng.r#gen();
-        let hex_str = hex::encode(bytes);
-        let id = format!("{}-{}", prefix, &hex_str[..ID_HEX_LEN]);
+        let bytes: Vec<u8> = (0..byte_count).map(|_| rng.r#gen()).collect();
+        let hex_str = hex::encode(&bytes);
+        let id = format!("{}-{}", prefix, &hex_str[..hex_len]);
 
         if !existing_ids.contains(&id) {
             return Ok(id);
@@ -121,6 +124,32 @@ mod tests {
         // Instead, we just verify the happy path works and trust the loop logic.
         let existing = HashSet::new();
         assert!(generate_id(&existing).is_ok());
+    }
+
+    #[test]
+    fn generate_id_custom_hex_len() {
+        let existing = HashSet::new();
+        let id = generate_id_with_prefix(&existing, "tg", 8).unwrap();
+        assert!(id.starts_with("tg-"), "ID should start with tg-: {}", id);
+        assert_eq!(
+            id.len(),
+            11,
+            "ID should be 11 chars (tg- + 8 hex): {}",
+            id
+        );
+        let hex_part = &id[3..];
+        assert!(
+            hex_part.chars().all(|c| c.is_ascii_hexdigit()),
+            "Hex part should be valid hex: {}",
+            hex_part
+        );
+    }
+
+    #[test]
+    fn generate_id_short_hex_len() {
+        let existing = HashSet::new();
+        let id = generate_id_with_prefix(&existing, "tg", 3).unwrap();
+        assert_eq!(id.len(), 6, "ID should be 6 chars (tg- + 3 hex): {}", id);
     }
 
     #[test]
