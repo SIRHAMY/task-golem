@@ -85,6 +85,7 @@ pub fn run(
             blocked_from_status: None,
             claimed_by: None,
             claimed_at: None,
+            parent: None,
             extensions: ext,
         };
 

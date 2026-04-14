@@ -24,6 +24,7 @@ const KNOWN_FIELD_NAMES: &[&str] = &[
     "blocked_from_status",
     "claimed_by",
     "claimed_at",
+    "parent",
 ];
 
 /// Serialize Option<T> so that None becomes JSON null (not omitted).
@@ -64,6 +65,9 @@ pub struct Item {
 
     #[serde(serialize_with = "serialize_option_nullable")]
     pub claimed_at: Option<DateTime<Utc>>,
+
+    #[serde(default, serialize_with = "serialize_option_nullable")]
+    pub parent: Option<String>,
 
     #[serde(flatten)]
     pub extensions: BTreeMap<String, serde_json::Value>,
@@ -181,6 +185,7 @@ mod tests {
             blocked_from_status: None,
             claimed_by: None,
             claimed_at: None,
+            parent: None,
             extensions,
         }
     }
@@ -209,6 +214,7 @@ mod tests {
         assert_eq!(parsed["blocked_from_status"], serde_json::Value::Null);
         assert_eq!(parsed["claimed_by"], serde_json::Value::Null);
         assert_eq!(parsed["claimed_at"], serde_json::Value::Null);
+        assert_eq!(parsed["parent"], serde_json::Value::Null);
     }
 
     /// Verify extension fields appear after known fields with alphabetical ordering
@@ -257,6 +263,7 @@ mod tests {
             blocked_from_status: None,
             claimed_by: None,
             claimed_at: None,
+            parent: None,
             extensions,
         };
 
@@ -313,6 +320,7 @@ mod tests {
             blocked_from_status: Some(Status::Doing),
             claimed_by: Some("agent-1".to_string()),
             claimed_at: Some(now),
+            parent: Some("tg-par01".to_string()),
             extensions: BTreeMap::new(),
         };
 
@@ -504,6 +512,7 @@ mod tests {
             blocked_from_status: None,
             claimed_by: None,
             claimed_at: None,
+            parent: None,
             extensions: BTreeMap::new(),
         };
 

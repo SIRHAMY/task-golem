@@ -165,6 +165,157 @@ pub fn detect_all_cycles(items: &[Item]) -> Vec<Vec<String>> {
     found_cycles
 }
 
+/// Check if setting `new_parent_id` as the parent of `source_id` would create a parent cycle.
+/// Uses DFS from new_parent_id following parent edges in active items only.
+/// Parent and dependency graphs are independent — this does not consider deps.
+pub fn would_create_parent_cycle(items: &[Item], source_id: &str, new_parent_id: &str) -> bool {
+    // Build adjacency: item -> its parent (single edge, but we reuse the general shape)
+    let parent_map: HashMap<&str, &str> = items
+        .iter()
+        .filter_map(|item| item.parent.as_deref().map(|p| (item.id.as_str(), p)))
+        .collect();
+
+    // Walk up from new_parent_id via parent edges: if we reach source_id, adding the
+    // edge (source_id -> new_parent_id) creates a cycle.
+    let mut visited = HashSet::new();
+    let mut current = new_parent_id;
+    loop {
+        if current == source_id {
+            return true;
+        }
+        if !visited.insert(current) {
+            // Already-cyclic input data — stop to avoid infinite loop.
+            return false;
+        }
+        match parent_map.get(current) {
+            Some(&next) => current = next,
+            None => return false,
+        }
+    }
+}
+
+/// Full-graph parent cycle detection via topological sort (Kahn's algorithm).
+/// Returns all cycles found as vectors of item IDs.
+/// Parent edges are the only edges considered — dependencies are ignored.
+pub fn detect_all_parent_cycles(items: &[Item]) -> Vec<Vec<String>> {
+    let ids: HashSet<&str> = items.iter().map(|i| i.id.as_str()).collect();
+
+    // Build in-degree + adjacency on parent edges.
+    // Edge direction: child -> parent. Node in-degree = number of "this is my parent" refs from
+    // children that reference it AND that parent reference points to an existing active item.
+    let mut in_degree: HashMap<&str, usize> = HashMap::new();
+    let mut children_of: HashMap<&str, Vec<&str>> = HashMap::new();
+
+    for item in items {
+        in_degree.entry(item.id.as_str()).or_insert(0);
+        if let Some(parent_id) = item.parent.as_deref()
+            && ids.contains(parent_id)
+        {
+            *in_degree.entry(item.id.as_str()).or_insert(0) += 1;
+            children_of
+                .entry(parent_id)
+                .or_default()
+                .push(item.id.as_str());
+        }
+    }
+
+    // Kahn's: start with nodes that have in-degree 0 (no active parent).
+    let mut queue: Vec<&str> = in_degree
+        .iter()
+        .filter(|(_, deg)| **deg == 0)
+        .map(|(id, _)| *id)
+        .collect();
+
+    let mut processed = HashSet::new();
+    while let Some(node) = queue.pop() {
+        processed.insert(node);
+        if let Some(children) = children_of.get(node) {
+            for &child in children {
+                if let Some(deg) = in_degree.get_mut(child) {
+                    *deg -= 1;
+                    if *deg == 0 {
+                        queue.push(child);
+                    }
+                }
+            }
+        }
+    }
+
+    let cycle_nodes: HashSet<&str> = ids.difference(&processed).copied().collect();
+    if cycle_nodes.is_empty() {
+        return vec![];
+    }
+
+    // Each cycle node has exactly one outgoing parent edge, so we can trace cycles linearly.
+    let parent_map: HashMap<&str, &str> = items
+        .iter()
+        .filter_map(|item| item.parent.as_deref().map(|p| (item.id.as_str(), p)))
+        .collect();
+
+    let mut found_cycles = Vec::new();
+    let mut globally_visited: HashSet<&str> = HashSet::new();
+
+    for &start in &cycle_nodes {
+        if globally_visited.contains(start) {
+            continue;
+        }
+
+        // Walk along parent edges from start, recording the path, until we revisit a node.
+        let mut path: Vec<&str> = Vec::new();
+        let mut path_idx: HashMap<&str, usize> = HashMap::new();
+        let mut current = start;
+        loop {
+            if let Some(&idx) = path_idx.get(current) {
+                let cycle: Vec<String> = path[idx..].iter().map(|s| s.to_string()).collect();
+                for &n in &path[idx..] {
+                    globally_visited.insert(n);
+                }
+                found_cycles.push(cycle);
+                break;
+            }
+            path_idx.insert(current, path.len());
+            path.push(current);
+            match parent_map.get(current) {
+                Some(&next) if cycle_nodes.contains(next) => current = next,
+                _ => break,
+            }
+        }
+    }
+
+    found_cycles
+}
+
+/// Validate a proposed parent for `source_id`:
+/// - Self-parent rejected.
+/// - Parent ID must exist in active items (archived targets rejected).
+///
+/// Caller is responsible for running `would_create_parent_cycle` on the proposed post-edit graph.
+pub fn validate_parent(
+    source_id: &str,
+    proposed_parent_id: &str,
+    active_ids: &HashSet<String>,
+    _archive_ids: &HashSet<String>,
+) -> Result<(), TgError> {
+    if source_id == proposed_parent_id {
+        return Err(TgError::ParentSelfReference {
+            id: source_id.to_string(),
+        });
+    }
+
+    // Archived targets are rejected — `parent` must reference an active item.
+    // `_archive_ids` is accepted for parity with `validate_dep` and so callers
+    // don't have to decide which set to pass; a future refinement could produce
+    // a more specific error when the target is specifically archived.
+    if !active_ids.contains(proposed_parent_id) {
+        return Err(TgError::ParentDangling {
+            id: source_id.to_string(),
+            parent: proposed_parent_id.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
 /// Compute the ready queue: active todo items whose dependencies are all met.
 /// A dependency is met if it exists in the done_set (active done items + all archived IDs).
 /// Dependencies on IDs absent from both active and archive are unmet.
@@ -240,6 +391,7 @@ mod tests {
             blocked_from_status: None,
             claimed_by: None,
             claimed_at: None,
+            parent: None,
             extensions: BTreeMap::new(),
         }
     }

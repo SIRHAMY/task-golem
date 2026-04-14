@@ -34,6 +34,18 @@ pub enum TgError {
     #[error("Item {0} is depended on by: {1}")]
     DependentExists(String, String),
 
+    #[error("Item {id} cannot be its own parent")]
+    ParentSelfReference { id: String },
+
+    #[error("Parent cycle detected among: {}", ids.join(", "))]
+    ParentCycle { ids: Vec<String> },
+
+    #[error("Parent '{parent}' for item {id} not found in active items")]
+    ParentDangling { id: String, parent: String },
+
+    #[error("Item {id} has children and cannot be removed: {}", children.join(", "))]
+    ParentHasChildren { id: String, children: Vec<String> },
+
     // System errors (exit code 2)
     #[error("Storage corruption: {0}")]
     StorageCorruption(String),
@@ -61,7 +73,11 @@ impl TgError {
             | TgError::AlreadyClaimed(_)
             | TgError::InvalidInput(_)
             | TgError::NotInitialized(_)
-            | TgError::DependentExists(_, _) => 1,
+            | TgError::DependentExists(_, _)
+            | TgError::ParentSelfReference { .. }
+            | TgError::ParentCycle { .. }
+            | TgError::ParentDangling { .. }
+            | TgError::ParentHasChildren { .. } => 1,
 
             TgError::StorageCorruption(_)
             | TgError::LockTimeout(_)

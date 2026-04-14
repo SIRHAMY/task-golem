@@ -39,6 +39,7 @@ fn store_round_trip() {
         blocked_from_status: None,
         claimed_by: None,
         claimed_at: None,
+        parent: None,
         extensions: std::collections::BTreeMap::new(),
     };
 
@@ -101,6 +102,7 @@ fn all_known_ids_includes_active_and_archive() {
         blocked_from_status: None,
         claimed_by: None,
         claimed_at: None,
+        parent: None,
         extensions: std::collections::BTreeMap::new(),
     };
 
@@ -118,6 +120,7 @@ fn all_known_ids_includes_active_and_archive() {
         blocked_from_status: None,
         claimed_by: None,
         claimed_at: None,
+        parent: None,
         extensions: std::collections::BTreeMap::new(),
     };
 
@@ -148,6 +151,7 @@ fn item_apply_unblock_restores_status() {
         blocked_from_status: None,
         claimed_by: None,
         claimed_at: None,
+        parent: None,
         extensions: std::collections::BTreeMap::new(),
     };
 
@@ -194,6 +198,7 @@ fn item_partial_eq_works() {
         blocked_from_status: None,
         claimed_by: None,
         claimed_at: None,
+        parent: None,
         extensions: std::collections::BTreeMap::new(),
     };
 
