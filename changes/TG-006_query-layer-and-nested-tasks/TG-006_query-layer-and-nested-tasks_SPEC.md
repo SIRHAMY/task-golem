@@ -356,7 +356,7 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 > Teach `tg doctor` about parent cycles, dangling parent refs, cache consistency, and gitignore hygiene.
 
-**Phase Status:** not_started
+**Phase Status:** completed
 
 **Complexity:** Med
 
@@ -386,23 +386,23 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 **Tasks:**
 
-- [ ] Add `parent_cycle` check using `deps::detect_all_parent_cycles`.
-- [ ] Add `parent_dangling_active` check.
-- [ ] Add `parent_dangling_archive` check with `--fix` repair (clear parent field).
-- [ ] Add `duplicate_id` check scanning active + archive; no auto-repair.
-- [ ] Add `cache_drift` check: rebuild to temp, compare schema_version + per-table row counts; repair via rename.
-- [ ] Add `gitignore_missing` check with `--fix` repair.
-- [ ] Write doctor tests for each new check, both detection and repair paths where applicable. Include a duplicate-ID fixture.
-- [ ] Update `tg doctor`'s summary output to include counts of the new issue types.
+- [x] Add `parent_cycle` check using `deps::detect_all_parent_cycles`.
+- [x] Add `parent_dangling_active` check.
+- [x] Add `parent_dangling_archive` check with `--fix` repair (clear parent field).
+- [x] Add `duplicate_id` check scanning active + archive; no auto-repair.
+- [x] Add `cache_drift` check: rebuild to temp, compare schema_version + per-table row counts; repair via rename.
+- [x] Add `gitignore_missing` check with `--fix` repair.
+- [x] Write doctor tests for each new check, both detection and repair paths where applicable. Include a duplicate-ID fixture.
+- [x] Update `tg doctor`'s summary output to include counts of the new issue types.
 
 **Verification:**
 
-- [ ] `just check` passes.
-- [ ] Cyclic parent JSONL is detected by `tg doctor`.
-- [ ] Missing gitignore is detected; `tg doctor --fix` creates it; second run is clean.
-- [ ] Stale cache is detected; `tg doctor --fix` rebuilds; second run is clean.
-- [ ] Existing doctor tests pass unchanged.
-- [ ] Code review passes.
+- [x] `just check` passes.
+- [x] Cyclic parent JSONL is detected by `tg doctor`.
+- [x] Missing gitignore is detected; `tg doctor --fix` creates it; second run is clean.
+- [x] Stale cache is detected; `tg doctor --fix` rebuilds; second run is clean.
+- [x] Existing doctor tests pass unchanged.
+- [x] Code review passes.
 
 **Commit:** `[TG-006][P5] Feature: Extend tg doctor with parent, cache, and gitignore checks`
 

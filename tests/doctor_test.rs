@@ -216,6 +216,262 @@ fn doctor_fix_removes_dangling_deps() {
 }
 
 #[test]
+fn doctor_detects_parent_cycle() {
+    let project = TestProject::new().unwrap();
+
+    let a = project.run_tg_json(&["add", "Task A"]);
+    let b = project.run_tg_json(&["add", "Task B"]);
+    let a_id = a["id"].as_str().unwrap().to_string();
+    let b_id = b["id"].as_str().unwrap().to_string();
+
+    // Manually inject a parent cycle: A.parent=B, B.parent=A (bypasses CLI validation).
+    let tasks_path = project.project_dir().join("tasks.jsonl");
+    let content = fs::read_to_string(&tasks_path).unwrap();
+    let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+
+    for line in &mut lines[1..] {
+        if line.contains(&format!("\"id\":\"{}\"", a_id)) {
+            *line = line.replace("\"parent\":null", &format!("\"parent\":\"{}\"", b_id));
+        }
+        if line.contains(&format!("\"id\":\"{}\"", b_id)) {
+            *line = line.replace("\"parent\":null", &format!("\"parent\":\"{}\"", a_id));
+        }
+    }
+    fs::write(&tasks_path, lines.join("\n") + "\n").unwrap();
+
+    let report = project.run_tg_json(&["doctor"]);
+    let issues = report["issues"].as_array().unwrap();
+    let cycles: Vec<_> = issues
+        .iter()
+        .filter(|i| i["type"] == "parent_cycle")
+        .collect();
+    assert!(
+        !cycles.is_empty(),
+        "Expected parent_cycle issue, got: {:?}",
+        issues
+    );
+}
+
+#[test]
+fn doctor_detects_parent_dangling_active() {
+    let project = TestProject::new().unwrap();
+
+    let a = project.run_tg_json(&["add", "Task A"]);
+    let a_id = a["id"].as_str().unwrap().to_string();
+
+    // Manually inject a parent pointing to a nonexistent task.
+    let tasks_path = project.project_dir().join("tasks.jsonl");
+    let content = fs::read_to_string(&tasks_path).unwrap();
+    let updated = content.replace("\"parent\":null", "\"parent\":\"tg-nonex\"");
+    fs::write(&tasks_path, updated).unwrap();
+
+    let report = project.run_tg_json(&["doctor"]);
+    let issues = report["issues"].as_array().unwrap();
+    let dangling: Vec<_> = issues
+        .iter()
+        .filter(|i| i["type"] == "parent_dangling_active")
+        .collect();
+    assert!(
+        !dangling.is_empty(),
+        "Expected parent_dangling_active issue for {}, got: {:?}",
+        a_id,
+        issues
+    );
+}
+
+#[test]
+fn doctor_detects_parent_dangling_archive_and_fix_repairs() {
+    let project = TestProject::new().unwrap();
+
+    // Add and archive a task so archive has content.
+    let a = project.run_tg_json(&["add", "Task A"]);
+    let a_id = a["id"].as_str().unwrap().to_string();
+    project.run_tg(&["doing", &a_id]);
+    project.run_tg(&["done", &a_id]);
+    project.run_tg(&["archive"]);
+
+    // Now manually inject a dangling parent ref on the archived item.
+    let archive_path = project.project_dir().join("archive.jsonl");
+    let content = fs::read_to_string(&archive_path).unwrap();
+    let updated = content.replacen("\"parent\":null", "\"parent\":\"tg-dangle\"", 1);
+    fs::write(&archive_path, updated).unwrap();
+
+    // Doctor should detect parent_dangling_archive.
+    let report = project.run_tg_json(&["doctor"]);
+    let issues = report["issues"].as_array().unwrap();
+    let dangling: Vec<_> = issues
+        .iter()
+        .filter(|i| i["type"] == "parent_dangling_archive")
+        .collect();
+    assert!(
+        !dangling.is_empty(),
+        "Expected parent_dangling_archive issue, got: {:?}",
+        issues
+    );
+
+    // --fix clears the dangling parent ref.
+    let fix_output = project.run_tg(&["--json", "doctor", "--fix"]);
+    assert!(
+        fix_output.status.success(),
+        "doctor --fix should succeed: {}",
+        String::from_utf8_lossy(&fix_output.stderr)
+    );
+
+    // Rerun doctor — parent_dangling_archive should be gone.
+    let post = project.run_tg_json(&["doctor"]);
+    let remaining: Vec<_> = post["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["type"] == "parent_dangling_archive")
+        .collect();
+    assert!(
+        remaining.is_empty(),
+        "Expected parent_dangling_archive repaired, got: {:?}",
+        post["issues"]
+    );
+}
+
+#[test]
+fn doctor_detects_missing_gitignore_and_fix_creates_it() {
+    let project = TestProject::new().unwrap();
+
+    // Delete the gitignore file that `tg init` created.
+    let gitignore = project.project_dir().join(".gitignore");
+    if gitignore.exists() {
+        fs::remove_file(&gitignore).unwrap();
+    }
+
+    let report = project.run_tg_json(&["doctor"]);
+    let issues = report["issues"].as_array().unwrap();
+    let gi: Vec<_> = issues
+        .iter()
+        .filter(|i| i["type"] == "gitignore_missing")
+        .collect();
+    assert!(
+        !gi.is_empty(),
+        "Expected gitignore_missing issue, got: {:?}",
+        issues
+    );
+
+    let fix_output = project.run_tg(&["--json", "doctor", "--fix"]);
+    assert!(
+        fix_output.status.success(),
+        "doctor --fix should succeed: {}",
+        String::from_utf8_lossy(&fix_output.stderr)
+    );
+
+    assert!(gitignore.exists(), "gitignore should have been created");
+    let contents = fs::read_to_string(&gitignore).unwrap();
+    for line in ["cache.db", "cache.db-journal", "cache.db.tmp-*"] {
+        assert!(
+            contents.lines().any(|l| l.trim() == line),
+            "Expected gitignore to contain '{}', got:\n{}",
+            line,
+            contents
+        );
+    }
+
+    // Second run is clean (for this check).
+    let post = project.run_tg_json(&["doctor"]);
+    let remaining: Vec<_> = post["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["type"] == "gitignore_missing")
+        .collect();
+    assert!(remaining.is_empty(), "Expected gitignore_missing repaired");
+}
+
+#[test]
+fn doctor_detects_cache_drift_and_fix_repairs() {
+    let project = TestProject::new().unwrap();
+
+    // Add a task, then prime the cache by running a query so cache.db exists.
+    project.run_tg(&["add", "Task A"]);
+    let q = project.run_tg(&["query", "SELECT count(*) FROM tasks"]);
+    assert!(
+        q.status.success(),
+        "initial query should succeed: {}",
+        String::from_utf8_lossy(&q.stderr)
+    );
+
+    // Add another task but manipulate the cache.db to simulate drift while keeping
+    // the JSONL stamp matching what the cache thinks it knows about. We do this by
+    // directly mutating the cache's _cache_meta jsonl_xxh3 to match the current
+    // JSONL (so open_or_rebuild thinks the cache is fresh) while the actual task
+    // rows are stale.
+    // Simpler: just delete a row from the cache directly to force drift — but then
+    // the stamp will still match. open_or_rebuild only checks stamps, not row
+    // counts. That's exactly why we need this doctor check.
+    let cache_path = project.project_dir().join("cache.db");
+    let conn = rusqlite::Connection::open(&cache_path).unwrap();
+    // Delete from tasks so row count differs from a fresh rebuild.
+    conn.execute("DELETE FROM tasks", []).unwrap();
+    drop(conn);
+
+    let report = project.run_tg_json(&["doctor"]);
+    let issues = report["issues"].as_array().unwrap();
+    let drift: Vec<_> = issues
+        .iter()
+        .filter(|i| i["type"] == "cache_drift")
+        .collect();
+    assert!(
+        !drift.is_empty(),
+        "Expected cache_drift issue, got: {:?}",
+        issues
+    );
+
+    // --fix rebuilds.
+    let fix_output = project.run_tg(&["--json", "doctor", "--fix"]);
+    assert!(
+        fix_output.status.success(),
+        "doctor --fix should succeed: {}",
+        String::from_utf8_lossy(&fix_output.stderr)
+    );
+
+    // Second run is clean for cache_drift.
+    let post = project.run_tg_json(&["doctor"]);
+    let remaining: Vec<_> = post["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["type"] == "cache_drift")
+        .collect();
+    assert!(
+        remaining.is_empty(),
+        "Expected cache_drift repaired, got: {:?}",
+        post["issues"]
+    );
+}
+
+#[test]
+fn doctor_detects_duplicate_id_within_active() {
+    let project = TestProject::new().unwrap();
+
+    let a = project.run_tg_json(&["add", "Task A"]);
+    let _a_id = a["id"].as_str().unwrap().to_string();
+
+    // Append the same line again to create a duplicate within active.
+    let tasks_path = project.project_dir().join("tasks.jsonl");
+    let content = fs::read_to_string(&tasks_path).unwrap();
+    let item_line = content.lines().nth(1).unwrap().to_string();
+    fs::write(&tasks_path, format!("{}{}\n", content, item_line)).unwrap();
+
+    let report = project.run_tg_json(&["doctor"]);
+    let issues = report["issues"].as_array().unwrap();
+    let dup: Vec<_> = issues
+        .iter()
+        .filter(|i| i["type"] == "duplicate_id")
+        .collect();
+    assert!(
+        !dup.is_empty(),
+        "Expected duplicate_id issue, got: {:?}",
+        issues
+    );
+}
+
+#[test]
 fn doctor_detects_invalid_status() {
     let project = TestProject::new().unwrap();
 
