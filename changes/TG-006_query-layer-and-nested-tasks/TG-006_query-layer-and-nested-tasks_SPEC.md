@@ -421,7 +421,7 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 > Add the 5 canonical SQL examples and transition-point guidance to the task-golem skill.
 
-**Phase Status:** not_started
+**Phase Status:** completed
 
 **Complexity:** Low
 
@@ -445,20 +445,20 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 **Tasks:**
 
-- [ ] Locate the canonical task-golem skill source file.
-- [ ] Draft the 5 canonical queries against the actual `task_view` schema shipped in Phase 3. Verify each runs (copy-paste into a test fixture).
-- [ ] Draft the "When to query" guidance (~3 bullets).
-- [ ] Add a pointer to `tg query --schema`.
-- [ ] Verify the skill renders correctly (no broken markdown).
-- [ ] Hand-test: run each of the 5 queries against a real `tg` project and confirm output matches the example.
-- [ ] Bump `Cargo.toml` version from `0.1.0` to `0.2.0`; run `cargo build` to refresh `Cargo.lock`; commit lockfile alongside the version bump.
+- [x] Locate the canonical task-golem skill source file.
+- [x] Draft the 5 canonical queries against the actual `task_view` schema shipped in Phase 3. Verify each runs (copy-paste into a test fixture).
+- [x] Draft the "When to query" guidance (~3 bullets).
+- [x] Add a pointer to `tg query --schema`.
+- [x] Verify the skill renders correctly (no broken markdown).
+- [x] Hand-test: run each of the 5 queries against a real `tg` project and confirm output matches the example.
+- [x] Bump `Cargo.toml` version from `0.1.0` to `0.2.0`; run `cargo build` to refresh `Cargo.lock`; commit lockfile alongside the version bump.
 
 **Verification:**
 
-- [ ] All 5 canonical queries were hand-executed against a real `tg` project; outputs captured in Phase Notes.
-- [ ] Skill file renders correctly (no broken markdown).
-- [ ] `tg query --schema` output matches the schema the canonical queries assume.
-- [ ] Code review passes (manual review of the skill diff; no repo tests to run).
+- [x] All 5 canonical queries were hand-executed against a real `tg` project; outputs captured in Phase Notes.
+- [x] Skill file renders correctly (no broken markdown).
+- [x] `tg query --schema` output matches the schema the canonical queries assume.
+- [x] Code review passes (manual review of the skill diff; no repo tests to run).
 
 **Commit:** The skill lives outside this repo. If the skill is version-controlled in its own repository, commit there with `[TG-006][P6] Docs: Add task-golem canonical queries and guidance`. If not, document the update in the change's review log only — nothing is committed to task-golem itself for P6.
 
@@ -466,6 +466,14 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 - The skill update is tied to this change per PRD decision (not split to a follow-up). Shipping with working defaults; iterate separately if prompting empirically needs tuning.
 - Because the skill is external, Phase 6 does not flow through `just check` and is not covered by the repo's commit convention. Confirm the skill path with the user at phase start if ambiguous.
+- Skill location: lives at `~/.claude/skills/task-golem/SKILL.md` only (no repo-local shadow at `.claude/skills/task-golem/SKILL.md`). Edited there directly. The skill is not in its own version-controlled repository on this machine, so per SPEC commit guidance, no commit is made for the skill change — only this Phase Notes record documents it.
+- Hand-test fixture (in `/tmp/tg-p6-test`): one Epic A (priority 8, root) with two children Child 1 (5) and Child 2 (7); Child 1 has Grandchild (3). Plus an Orphan task (9), a Dep that blocks (2), and Has unmet dep (6) which depends on the blocker.
+- Captured outputs (column headers + rows) from running each canonical query against the fixture:
+  - **Q1 descendants of Epic A**: returns Child 1 (depth 0), Child 2 (depth 0), Grandchild (depth 1).
+  - **Q2 ancestors of Grandchild**: returns Child 1 (depth 1), Epic A (depth 2). Self correctly excluded.
+  - **Q3 ready under Epic A**: returns Child 2 (pri 7), Child 1 (pri 5), Grandchild (pri 3) — all ready, ordered by priority.
+  - **Q4 unblocked todos by priority**: returns Orphan (9), Epic A (8), Child 2 (7), Child 1 (5), Grandchild (3), Dep that blocks (2). "Has unmet dep" (6) is correctly excluded — its dependency is unmet so `is_ready=0`.
+  - **Q5 orphans**: returns Orphan task (9), Epic A (8), Has unmet dep (6), Dep that blocks (2). All non-parented tasks; the three with `parent` set are correctly excluded.
 
 **Followups:**
 
