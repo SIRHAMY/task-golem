@@ -63,7 +63,7 @@ When this change is complete:
 - [ ] Deleting a task with children is rejected. User must reparent or delete children first. (Rationale: safest default; cascade/orphan semantics can be added later if needed.)
 - [ ] `tg edit` supports changing `parent`; cycle detection runs on the proposed post-edit graph.
 - [ ] Persistent SQLite cache at `.taskgolem/cache.db`, auto-added to `.taskgolem/.gitignore` on `tg init` (existing users: documented one-line manual update).
-- [ ] Writes go JSONL-first, then cache, then stamp. `rusqlite` is used with the `bundled` feature (static-link SQLite) to preserve single-binary install UX.
+- [ ] Writes update JSONL atomically (existing temp-file + fsync + rename pattern). The cache is rebuilt lazily on the next `tg query` invocation when its composite stamp disagrees with the JSONL — writes do not touch the cache. `rusqlite` is used with the `bundled` feature (static-link SQLite) to preserve single-binary install UX.
 - [ ] Cache staleness stamp is a composite of `(jsonl_mtime, jsonl_size, jsonl_content_hash)`, stored in a `_cache_meta` table inside SQLite. All three must match for the cache to be considered fresh. Content hash is cheap (e.g., xxhash3 over the full file — at solo-dev scale, milliseconds).
 - [ ] Cache rebuilds automatically when stale, missing, or corrupt. Corruption is detected via `PRAGMA quick_check` plus a `cache_schema_version` sentinel. Rebuild is idempotent: build to a temp file, atomic rename on success.
 - [ ] Cycle detection covers `parent` relationships. `parent` and `dependencies` are treated as two independent DAGs — they do not share a cycle space. (Rationale: simpler mental model; can be tightened later if cross-graph cycles cause confusion.)
@@ -109,6 +109,7 @@ When this change is complete:
 - **Cross-project parent references.** `parent` scope is same-project only.
 - **Cross-graph cycle detection** (e.g., disallowing a task from depending on its own descendant). `parent` and `dependencies` are independent DAGs.
 - **Archival/pruning story for unbounded JSONL growth.** Noted as future concern — not addressed here.
+- **Archive queryability via `tg query`.** Deferred to v2. The SQLite cache contains active tasks only in v1; archived tasks remain accessible via `tg dump` and future work. Rationale: archive JSONL parsing is lenient today (skips bad lines), which conflicts with the strict-parse rebuild needed for cache correctness. Picking a policy for both without a concrete use case expands scope.
 - **Multi-user coordination or concurrent-write improvements** beyond the existing file lock. Two concurrent `tg` processes that both see "stale cache" may both rebuild; SQLite's own locking and the atomic-rename pattern must make this safe but we do not optimize for it.
 - **Network filesystem support.** Cache assumes local filesystem; behavior on NFS/SMB is undefined.
 - **Remote/sync backends.** Local filesystem only.
