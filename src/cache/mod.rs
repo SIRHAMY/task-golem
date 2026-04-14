@@ -14,7 +14,43 @@
 //! Keep this module self-contained: nothing outside `src/cache/` should depend on
 //! `rusqlite`.
 
+pub mod query;
 pub mod rebuild;
+
+/// Column type advertised by SQLite for a prepared statement column.
+///
+/// Mirrors the values returned by `sqlite3_column_type`. `Null` means the
+/// column was null in the first row (SQLite is dynamically typed, so the
+/// effective type is per-row — we record the type we actually produced).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SqlType {
+    Integer,
+    Real,
+    Text,
+    Null,
+    Blob,
+}
+
+/// Single cell value in a query result.
+///
+/// Kept narrow and owned to decouple the query engine from the CLI formatting
+/// layer; the CLI maps this to JSON or aligned tabular output.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SqlValue {
+    Null,
+    Integer(i64),
+    Real(f64),
+    Text(String),
+    Blob(Vec<u8>),
+}
+
+/// Typed result of executing a sandboxed query.
+#[derive(Debug, Clone)]
+pub struct QueryResult {
+    pub columns: Vec<String>,
+    pub column_types: Vec<SqlType>,
+    pub rows: Vec<Vec<SqlValue>>,
+}
 
 use std::fs;
 use std::path::Path;
@@ -174,6 +210,30 @@ pub(crate) fn write_meta(conn: &Connection, stamp: &Stamp) -> rusqlite::Result<(
     stmt.execute(["jsonl_size", &stamp.size.to_string()])?;
     stmt.execute(["jsonl_xxh3", &stamp.xxh3_64.to_string()])?;
     Ok(())
+}
+
+/// Check (without rebuilding) whether `cache.db` would need to be rebuilt on
+/// the next `open_or_rebuild` call. Used by the `tg query` CLI to print a
+/// `--verbose` "rebuilding cache" notice *before* the rebuild runs.
+///
+/// Returns `true` if the cache is missing, meta is unreadable, schema_version
+/// has drifted, or the stamp does not match. Does not itself touch the cache.
+pub fn is_stale(store: &Store) -> Result<bool, TgError> {
+    let jsonl_path = store.tasks_jsonl_path();
+    let cache_path = store.cache_db_path();
+
+    let current_stamp = compute_stamp(&jsonl_path)?;
+
+    if !cache_path.exists() {
+        return Ok(true);
+    }
+    match Connection::open(&cache_path) {
+        Ok(conn) => match read_meta(&conn) {
+            Some((v, stamp)) => Ok(v != SCHEMA_VERSION || stamp != current_stamp),
+            None => Ok(true),
+        },
+        Err(_) => Ok(true),
+    }
 }
 
 /// Open `cache.db` for read, rebuilding if stale or missing.

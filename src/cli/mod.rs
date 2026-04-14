@@ -78,6 +78,12 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
         Commands::Doctor { fix } => commands::doctor::run(cli.json, fix),
         Commands::Archive { before } => commands::archive::run(cli.json, before),
         Commands::Dump { yaml } => commands::dump::run(yaml),
+        Commands::Query {
+            sql,
+            schema,
+            json,
+            timeout,
+        } => commands::query::run(cli.verbose, sql, schema, json || cli.json, timeout),
         Commands::Completions { shell } => {
             let mut cmd = <args::Cli as clap::CommandFactory>::command();
             clap_complete::generate(shell, &mut cmd, "tg", &mut std::io::stdout());

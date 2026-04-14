@@ -285,7 +285,7 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 > Add SELECT-only query execution with three-layer sandbox and expose `tg query <sql>` with `--schema`, `--json`, `--timeout`.
 
-**Phase Status:** not_started
+**Phase Status:** completed
 
 **Complexity:** High
 
@@ -309,8 +309,8 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 **Tasks:**
 
-- [ ] Define `QueryResult`/`SqlType`/`SqlValue` in `src/cache/mod.rs` and re-export.
-- [ ] Implement `cache::query::execute(cache_path: &Path, sql: &str, timeout: Duration) -> Result<QueryResult, TgError>` (the query module owns connection lifecycle):
+- [x] Define `QueryResult`/`SqlType`/`SqlValue` in `src/cache/mod.rs` and re-export.
+- [x] Implement `cache::query::execute(cache_path: &Path, sql: &str, timeout: Duration) -> Result<QueryResult, TgError>` (the query module owns connection lifecycle):
   - Internally call `cache::open_or_rebuild` to get a freshly-stamped cache, then re-open read-only for the query connection.
   - Apply `PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA defensive=ON;`.
   - Register allowlist authorizer (default deny).
@@ -318,24 +318,24 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
   - Prepare statement (authorizer fires here).
   - Execute, collect rows into typed result.
   - Map `rusqlite::Error::SqliteFailure` → `QueryTimeout` on `SQLITE_INTERRUPT`; `QueryDenied` on `SQLITE_AUTH`; `QuerySyntax` otherwise.
-- [ ] Implement `tg query` CLI handler with `--schema`, `--json`, `--timeout`.
-- [ ] Format tabular output: aligned columns (mirror `tg list` width calculation); header row with column names; emit "(0 rows)" for empty result.
-- [ ] Format JSON output: `{"columns":[...],"rows":[[...],...]}` with serialization per design §Error Handling (Integer→number, oversized Integer→string + stderr warn, Real→number with NaN→null+warn, Text→string, Null→null, Blob→error).
-- [ ] Implement `--schema` output: Markdown document listing all tables + indices from the DDL constant, plus a `task_view` columns block with one-line descriptions, an "Active tasks only in v1" callout, and a "Bound recursive CTEs with `depth < 64`" reminder.
-- [ ] Write sandbox tests covering each denied action code individually.
-- [ ] Write query tests for tabular and JSON output shapes, timeout, schema command, descendants CTE, ancestors CTE.
-- [ ] Add `--verbose` rebuild notice in `tg query`: when `open_or_rebuild` triggers a rebuild, print `rebuilding cache (N tasks, X ms)` to stderr.
+- [x] Implement `tg query` CLI handler with `--schema`, `--json`, `--timeout`.
+- [x] Format tabular output: aligned columns (mirror `tg list` width calculation); header row with column names; emit "(0 rows)" for empty result.
+- [x] Format JSON output: `{"columns":[...],"rows":[[...],...]}` with serialization per design §Error Handling (Integer→number, oversized Integer→string + stderr warn, Real→number with NaN→null+warn, Text→string, Null→null, Blob→error).
+- [x] Implement `--schema` output: Markdown document listing all tables + indices from the DDL constant, plus a `task_view` columns block with one-line descriptions, an "Active tasks only in v1" callout, and a "Bound recursive CTEs with `depth < 64`" reminder.
+- [x] Write sandbox tests covering each denied action code individually.
+- [x] Write query tests for tabular and JSON output shapes, timeout, schema command, descendants CTE, ancestors CTE.
+- [x] Add `--verbose` rebuild notice in `tg query`: when `open_or_rebuild` triggers a rebuild, print `rebuilding cache (N tasks, X ms)` to stderr.
 
 **Verification:**
 
-- [ ] `just check` passes.
-- [ ] `tg query "SELECT count(*) FROM tasks"` returns correct count.
-- [ ] `tg query --schema` prints a well-formed Markdown schema document.
-- [ ] All 14+ sandbox tests pass — every attempted write/attach/file-access returns `QueryDenied` with a useful hint.
-- [ ] `tg query "SELECT 1" --timeout 0` returns `QueryTimeout` immediately.
-- [ ] Recursive descendants and ancestors queries return correct results over a nested fixture.
-- [ ] No regression in existing CLI.
-- [ ] Code review passes.
+- [x] `just check` passes.
+- [x] `tg query "SELECT count(*) FROM tasks"` returns correct count.
+- [x] `tg query --schema` prints a well-formed Markdown schema document.
+- [x] All 14+ sandbox tests pass — every attempted write/attach/file-access returns `QueryDenied` with a useful hint.
+- [x] `tg query "SELECT 1" --timeout 0` returns `QueryTimeout` immediately.
+- [x] Recursive descendants and ancestors queries return correct results over a nested fixture.
+- [x] No regression in existing CLI.
+- [x] Code review passes.
 
 **Commit:** `[TG-006][P4] Feature: Add tg query command with SELECT-only sandbox`
 

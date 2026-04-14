@@ -214,6 +214,24 @@ pub enum Commands {
         yaml: bool,
     },
 
+    /// Run a SELECT-only SQL query against the cache
+    Query {
+        /// SQL to execute (required unless --schema is set)
+        sql: Option<String>,
+
+        /// Print the cache schema as Markdown instead of running a query
+        #[arg(long)]
+        schema: bool,
+
+        /// Emit results as a JSON envelope (columns + rows)
+        #[arg(long)]
+        json: bool,
+
+        /// Query timeout in seconds (0 = trip immediately; no upper cap)
+        #[arg(long, default_value_t = 5)]
+        timeout: u64,
+    },
+
     /// Generate shell completion scripts
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, elvish, powershell)

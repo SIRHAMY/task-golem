@@ -72,6 +72,15 @@ pub enum TgError {
         "Cache schema version mismatch (stored: {stored}, expected: {expected}); rebuild required"
     )]
     CacheSchemaVersionMismatch { stored: u32, expected: u32 },
+
+    #[error("Query exceeded timeout of {limit_secs}s. Use --timeout N to extend.")]
+    QueryTimeout { limit_secs: u64 },
+
+    #[error("Query denied by sandbox: {action}. {hint}")]
+    QueryDenied { action: String, hint: String },
+
+    #[error("Query syntax error: {message}")]
+    QuerySyntax { message: String },
 }
 
 impl TgError {
@@ -88,7 +97,10 @@ impl TgError {
             | TgError::ParentSelfReference { .. }
             | TgError::ParentCycle { .. }
             | TgError::ParentDangling { .. }
-            | TgError::ParentHasChildren { .. } => 1,
+            | TgError::ParentHasChildren { .. }
+            | TgError::QueryTimeout { .. }
+            | TgError::QueryDenied { .. }
+            | TgError::QuerySyntax { .. } => 1,
 
             TgError::StorageCorruption(_)
             | TgError::LockTimeout(_)

@@ -7,6 +7,7 @@ pub mod edit;
 pub mod init;
 pub mod list;
 pub mod next;
+pub mod query;
 pub mod ready;
 pub mod rm;
 pub mod show;
