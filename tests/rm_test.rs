@@ -88,6 +88,24 @@ fn rm_nonexistent_exits_1() {
 }
 
 #[test]
+fn rm_rejected_when_children_exist() {
+    let proj = TestProject::new().unwrap();
+    let p = proj.run_tg_json(&["add", "Parent"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    proj.run_tg_json(&["add", "Child", "--parent", &pid]);
+
+    // Plain rm is rejected — --force does NOT bypass the children check.
+    let output = proj.run_tg(&["rm", &pid]);
+    assert!(!output.status.success());
+    assert_eq!(output.status.code().unwrap(), 1);
+
+    let output_forced = proj.run_tg(&["rm", &pid, "--force"]);
+    assert!(!output_forced.status.success());
+    let stderr = String::from_utf8_lossy(&output_forced.stderr);
+    assert!(stderr.to_lowercase().contains("children"));
+}
+
+#[test]
 fn rm_json_output_schema() {
     let proj = TestProject::new().unwrap();
     let add_json = proj.run_tg_json(&["add", "Task"]);

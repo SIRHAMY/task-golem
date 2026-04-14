@@ -17,6 +17,8 @@ pub fn run(json_mode: bool, action: DepAction) -> Result<(), TgError> {
                 vec![],           // add_tags
                 vec![],           // rm_tags
                 vec![],           // sets
+                None,             // parent
+                false,            // parent_clear
             )
         }
         DepAction::Rm { id, dep_id } => {
@@ -32,6 +34,8 @@ pub fn run(json_mode: bool, action: DepAction) -> Result<(), TgError> {
                 vec![],       // add_tags
                 vec![],       // rm_tags
                 vec![],       // sets
+                None,         // parent
+                false,        // parent_clear
             )
         }
     }

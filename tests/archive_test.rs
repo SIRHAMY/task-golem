@@ -125,6 +125,86 @@ fn archive_json_output_schema() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn archive_skips_done_parent_with_active_child() -> Result<(), Box<dyn std::error::Error>> {
+    let project = TestProject::new()?;
+
+    // Parent with an active child.
+    let p = project.run_tg_json(&["add", "Parent"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    let c = project.run_tg_json(&["add", "Child", "--parent", &pid]);
+    let cid = c["id"].as_str().unwrap().to_string();
+
+    // Manually mark the parent as done in the active store without archiving.
+    let tasks_path = project.path().join(".task-golem/tasks.jsonl");
+    let content = fs::read_to_string(&tasks_path)?;
+    let modified = content
+        .lines()
+        .map(|line| {
+            if line.contains(&format!("\"id\":\"{}\"", pid)) {
+                line.replace("\"status\":\"todo\"", "\"status\":\"done\"")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    fs::write(&tasks_path, modified)?;
+
+    // Sweep: only candidate is the parent (done), and it has an active child,
+    // so everything is blocked -> nonzero exit. Warning names the child ID.
+    let output = project.run_tg(&["archive"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains(&cid));
+    assert!(stderr.to_lowercase().contains("skipping"));
+
+    // Confirm the parent is still in active (not archived).
+    let show = project.run_tg_json(&["show", &pid]);
+    assert_eq!(show["status"], "done");
+    let list = project.run_tg_json(&["list", "--status", "done"]);
+    // The list of done in the archive should not contain the parent.
+    let arr = list.as_array().unwrap();
+    assert!(arr.iter().all(|v| v["id"].as_str().unwrap() != pid));
+
+    Ok(())
+}
+
+#[test]
+fn archive_archives_done_parent_when_all_children_also_done()
+-> Result<(), Box<dyn std::error::Error>> {
+    let project = TestProject::new()?;
+
+    let p = project.run_tg_json(&["add", "Parent"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    let c = project.run_tg_json(&["add", "Child", "--parent", &pid]);
+    let cid = c["id"].as_str().unwrap().to_string();
+
+    // Flip both to done directly in tasks.jsonl (bypassing `tg done` which
+    // would archive immediately and move the parent-child relationship out of
+    // active — we want both in active, both done, to exercise the sweep path.)
+    let tasks_path = project.path().join(".task-golem/tasks.jsonl");
+    let content = fs::read_to_string(&tasks_path)?;
+    let modified = content.replace("\"status\":\"todo\"", "\"status\":\"done\"");
+    fs::write(&tasks_path, modified)?;
+
+    // Run archive: child has no active non-done children; neither does parent
+    // (its only child is also done and therefore not blocking). Both archive.
+    let json = project.run_tg_json(&["archive"]);
+    assert_eq!(json["recovered"], 2);
+    let recovered_ids: Vec<String> = json["recovered_ids"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    assert!(recovered_ids.contains(&pid));
+    assert!(recovered_ids.contains(&cid));
+
+    Ok(())
+}
+
+#[test]
 fn archive_invalid_date_format() -> Result<(), Box<dyn std::error::Error>> {
     let project = TestProject::new()?;
 

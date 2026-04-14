@@ -8,11 +8,13 @@ use task_golem::model::deps;
 use task_golem::model::extensions;
 use task_golem::model::id;
 use task_golem::model::item::Item;
+use task_golem::model::parent as parent_mod;
 use task_golem::model::status::Status;
 use task_golem::store::Store;
 use task_golem::store::config::Config;
 use task_golem::store::root;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     json_mode: bool,
     title: String,
@@ -21,6 +23,7 @@ pub fn run(
     dep_inputs: Vec<String>,
     tags: Vec<String>,
     sets: Vec<String>,
+    parent_input: Option<String>,
 ) -> Result<(), TgError> {
     Item::validate_title(&title)?;
 
@@ -39,6 +42,14 @@ pub fn run(
         }
 
         let new_id = id::generate_id_with_prefix(&all_ids, &config.id_prefix, config.id_len)?;
+
+        // Resolve parent ID if provided (active-only; reparent will re-validate)
+        let resolved_parent = if let Some(ref p) = parent_input {
+            let active_ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();
+            Some(id::resolve_id(p, &active_ids, &archive_ids, false)?)
+        } else {
+            None
+        };
 
         // Build active-only ID set for validate_dep
         let active_ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();
@@ -71,8 +82,8 @@ pub fn run(
         }
 
         let now = Utc::now();
-        let item = Item {
-            id: new_id,
+        let new_item = Item {
+            id: new_id.clone(),
             title,
             status: Status::Todo,
             priority,
@@ -89,10 +100,26 @@ pub fn run(
             extensions: ext,
         };
 
-        items.push(item.clone());
+        items.push(new_item);
+
+        // Validate and apply parent if one was supplied. reparent() runs on the
+        // in-memory slice that already includes the new item, so a cycle-check
+        // via the graph would see the new item too — but since it has no children
+        // yet, that check is equivalent to verifying the target isn't the new ID.
+        // Archive is only loaded when needed (to keep the no-parent fast path fast).
+        if let Some(parent_id) = resolved_parent {
+            let archive_items = store.load_all_archive()?;
+            parent_mod::reparent(&mut items, &new_id, Some(parent_id), &archive_items)?;
+        }
+
+        let created = items
+            .iter()
+            .find(|i| i.id == new_id)
+            .expect("just inserted")
+            .clone();
         store.save_active(&items)?;
 
-        Ok(item)
+        Ok(created)
     })?;
 
     if json_mode {

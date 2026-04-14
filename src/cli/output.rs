@@ -145,3 +145,31 @@ pub fn print_item_detail(item: &Item) {
         }
     }
 }
+
+/// Print a "Children:" section for an item's direct children.
+///
+/// Caps visible rows at 10 and appends `(N more)` when truncated so terminal
+/// output stays scannable for epics with dozens of children.
+pub fn print_children_section(children: &[Item]) {
+    const MAX_VISIBLE: usize = 10;
+    let stdout = io::stdout();
+    let mut handle = stdout.lock();
+    writeln!(handle, "Children:").ok();
+
+    let visible = children.len().min(MAX_VISIBLE);
+    for child in &children[..visible] {
+        writeln!(
+            handle,
+            "  {:<10}  {:<7}  {:>4}  {}",
+            child.id,
+            format_status(child.status),
+            child.priority,
+            truncate(&child.title, 50),
+        )
+        .ok();
+    }
+
+    if children.len() > MAX_VISIBLE {
+        writeln!(handle, "  ({} more)", children.len() - MAX_VISIBLE).ok();
+    }
+}

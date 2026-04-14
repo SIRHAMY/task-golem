@@ -68,6 +68,40 @@ fn show_json_schema_complete() {
 }
 
 #[test]
+fn show_children_section_rendered_for_parent() {
+    let proj = TestProject::new().unwrap();
+    let p = proj.run_tg_json(&["add", "Epic"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    proj.run_tg_json(&["add", "Sub A", "--parent", &pid]);
+    proj.run_tg_json(&["add", "Sub B", "--parent", &pid, "--priority", "5"]);
+
+    let output = proj.run_tg(&["show", &pid]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Children:"));
+    // Higher-priority child listed first.
+    let sub_a_pos = stdout.find("Sub A").unwrap();
+    let sub_b_pos = stdout.find("Sub B").unwrap();
+    assert!(sub_b_pos < sub_a_pos);
+}
+
+#[test]
+fn show_children_section_truncates_past_10() {
+    let proj = TestProject::new().unwrap();
+    let p = proj.run_tg_json(&["add", "Big Epic"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    for i in 0..12 {
+        proj.run_tg_json(&["add", &format!("Child {}", i), "--parent", &pid]);
+    }
+
+    let output = proj.run_tg(&["show", &pid]);
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Children:"));
+    assert!(stdout.contains("(2 more)"));
+}
+
+#[test]
 fn show_archive_fallback() {
     let proj = TestProject::new().unwrap();
     // Manually write an item to the archive for testing

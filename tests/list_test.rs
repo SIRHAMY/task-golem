@@ -104,3 +104,49 @@ fn list_invalid_status() {
     let output = proj.run_tg(&["--json", "list", "--status", "invalid"]);
     assert!(!output.status.success());
 }
+
+#[test]
+fn list_parent_filter_returns_direct_children() {
+    let proj = TestProject::new().unwrap();
+    let p = proj.run_tg_json(&["add", "Parent"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    proj.run_tg_json(&["add", "Child A", "--parent", &pid]);
+    proj.run_tg_json(&["add", "Child B", "--parent", &pid]);
+    proj.run_tg_json(&["add", "Unrelated"]);
+
+    let json = proj.run_tg_json(&["list", "--parent", &pid]);
+    let arr = json.as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    let titles: Vec<&str> = arr.iter().map(|v| v["title"].as_str().unwrap()).collect();
+    assert!(titles.contains(&"Child A"));
+    assert!(titles.contains(&"Child B"));
+}
+
+#[test]
+fn list_parent_filter_empty_result() {
+    let proj = TestProject::new().unwrap();
+    let p = proj.run_tg_json(&["add", "Leaf"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+
+    let json = proj.run_tg_json(&["list", "--parent", &pid]);
+    let arr = json.as_array().unwrap();
+    assert!(arr.is_empty());
+}
+
+#[test]
+fn list_parent_filter_combined_with_status() {
+    let proj = TestProject::new().unwrap();
+    let p = proj.run_tg_json(&["add", "Parent"]);
+    let pid = p["id"].as_str().unwrap().to_string();
+    let a = proj.run_tg_json(&["add", "Child A", "--parent", &pid]);
+    let aid = a["id"].as_str().unwrap().to_string();
+    proj.run_tg_json(&["add", "Child B", "--parent", &pid]);
+
+    // Move A to doing
+    proj.run_tg_json(&["do", &aid]);
+
+    let json = proj.run_tg_json(&["list", "--parent", &pid, "--status", "doing"]);
+    let arr = json.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["id"].as_str().unwrap(), aid);
+}

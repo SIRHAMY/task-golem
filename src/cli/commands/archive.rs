@@ -29,24 +29,64 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
     };
 
     let result = store.with_lock(|store| {
-        // Step 1: Recover unarchived done items from active store
+        // Step 1: Recover unarchived done items from active store.
+        //
+        // A done candidate is SKIPPED if any non-done active item still has it
+        // as a parent. This prevents the sweep from orphaning active children
+        // during cleanup. Skipped candidates emit a warning to stderr; the sweep
+        // continues so unblocked candidates still archive in the same run.
         let mut active_items = store.load_active()?;
         let mut recovered: Vec<Item> = Vec::new();
+        let mut skipped_with_children: Vec<(String, Vec<String>)> = Vec::new();
 
-        let mut i = 0;
-        while i < active_items.len() {
-            if active_items[i].status == Status::Done {
-                let done_item = active_items.remove(i);
-                store.append_to_archive(&done_item)?;
-                recovered.push(done_item);
-            } else {
-                i += 1;
+        // Compute "done candidates" up-front so the child-set for each candidate
+        // is evaluated against a stable snapshot of the remaining active items.
+        let done_candidate_ids: Vec<String> = active_items
+            .iter()
+            .filter(|i| i.status == Status::Done)
+            .map(|i| i.id.clone())
+            .collect();
+
+        for candidate_id in done_candidate_ids {
+            // Children are non-done active items pointing at this candidate.
+            // (Other done candidates also being archived in this sweep are not
+            // blockers — they'll move to archive alongside their parent.)
+            let children: Vec<String> = active_items
+                .iter()
+                .filter(|i| {
+                    i.status != Status::Done && i.parent.as_deref() == Some(candidate_id.as_str())
+                })
+                .map(|i| i.id.clone())
+                .collect();
+
+            if !children.is_empty() {
+                eprintln!(
+                    "Warning: skipping {} — has active children: {}",
+                    candidate_id,
+                    children.join(", ")
+                );
+                skipped_with_children.push((candidate_id, children));
+                continue;
             }
+
+            // Pull the done item out and append to archive.
+            let idx = active_items
+                .iter()
+                .position(|i| i.id == candidate_id)
+                .expect("candidate collected from the same slice");
+            let done_item = active_items.remove(idx);
+            store.append_to_archive(&done_item)?;
+            recovered.push(done_item);
         }
 
         if !recovered.is_empty() {
             store.save_active(&active_items)?;
         }
+
+        // If at least one candidate existed and all were skipped, signal the
+        // condition via a nonzero exit so scripts can detect it.
+        let had_candidates = !recovered.is_empty() || !skipped_with_children.is_empty();
+        let everything_blocked = had_candidates && recovered.is_empty();
 
         // Step 2: Prune archive if --before provided
         let mut pruned: Vec<Item> = Vec::new();
@@ -80,6 +120,12 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
             recovered_ids: recovered.iter().map(|i| i.id.clone()).collect(),
             pruned_count: pruned.len(),
             pruned_ids: pruned.iter().map(|i| i.id.clone()).collect(),
+            skipped_count: skipped_with_children.len(),
+            skipped_ids: skipped_with_children
+                .iter()
+                .map(|(id, _)| id.clone())
+                .collect(),
+            everything_blocked,
         })
     })?;
 
@@ -89,6 +135,8 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
             "recovered_ids": result.recovered_ids,
             "pruned": result.pruned_count,
             "pruned_ids": result.pruned_ids,
+            "skipped": result.skipped_count,
+            "skipped_ids": result.skipped_ids,
         }));
     } else {
         if result.recovered_count > 0 {
@@ -105,9 +153,18 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
                 result.pruned_ids.join(", ")
             ));
         }
-        if result.recovered_count == 0 && result.pruned_count == 0 {
+        if result.recovered_count == 0 && result.pruned_count == 0 && result.skipped_count == 0 {
             output::print_human("No items to archive or prune.");
         }
+    }
+
+    // Nonzero exit if every candidate was blocked by children — signal to
+    // scripts that nothing was archived despite candidates existing.
+    if result.everything_blocked {
+        return Err(TgError::InvalidInput(format!(
+            "All {} done candidate(s) skipped due to active children. Reparent or complete the children, then re-run `tg archive`.",
+            result.skipped_count
+        )));
     }
 
     Ok(())
@@ -118,4 +175,7 @@ struct ArchiveResult {
     recovered_ids: Vec<String>,
     pruned_count: usize,
     pruned_ids: Vec<String>,
+    skipped_count: usize,
+    skipped_ids: Vec<String>,
+    everything_blocked: bool,
 }

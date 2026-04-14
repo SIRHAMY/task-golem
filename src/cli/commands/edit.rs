@@ -5,6 +5,7 @@ use task_golem::errors::TgError;
 use task_golem::model::deps;
 use task_golem::model::extensions;
 use task_golem::model::id;
+use task_golem::model::parent as parent_mod;
 use task_golem::store::Store;
 use task_golem::store::root;
 
@@ -20,6 +21,8 @@ pub fn run(
     add_tags: Vec<String>,
     rm_tags: Vec<String>,
     sets: Vec<String>,
+    parent_input: Option<String>,
+    parent_clear: bool,
 ) -> Result<(), TgError> {
     // Validate title if provided
     if let Some(ref t) = title {
@@ -97,7 +100,25 @@ pub fn run(
         // Apply extension changes
         extensions::apply_sets(&mut items[item_idx].extensions, &sets)?;
 
-        // Update timestamp
+        // Apply parent change via the single orchestration point.
+        // --parent and --parent-clear are mutually exclusive at the clap layer.
+        if parent_clear {
+            // Clearing the parent doesn't need archive validation (no new target).
+            parent_mod::reparent(&mut items, &resolved_id, None, &[])?;
+        } else if let Some(ref p) = parent_input {
+            // Resolve parent against active scope (archived targets rejected by validate_parent).
+            let resolved_parent = id::resolve_id(p, &active_ids, &archive_ids, false)?;
+            let archive_items = store.load_all_archive()?;
+            parent_mod::reparent(
+                &mut items,
+                &resolved_id,
+                Some(resolved_parent),
+                &archive_items,
+            )?;
+        }
+
+        // Update timestamp (reparent already bumps updated_at when parent changes;
+        // bump unconditionally for other field edits).
         items[item_idx].updated_at = Utc::now();
 
         let updated = items[item_idx].clone();

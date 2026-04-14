@@ -30,6 +30,21 @@ pub fn run(
         // Resolve ID (active-only scope)
         let resolved_id = id::resolve_id(&id_input, &active_ids, &archive_ids, false)?;
 
+        // Reject if this item has active children (not overridable by --force
+        // since orphaning children is a destructive invariant violation — user
+        // must explicitly reparent or delete children first).
+        let children: Vec<String> = items
+            .iter()
+            .filter(|i| i.parent.as_deref() == Some(resolved_id.as_str()))
+            .map(|i| i.id.clone())
+            .collect();
+        if !children.is_empty() {
+            return Err(TgError::ParentHasChildren {
+                id: resolved_id,
+                children,
+            });
+        }
+
         // Check for dependents
         let dependents: Vec<String> = items
             .iter()

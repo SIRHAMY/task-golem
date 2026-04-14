@@ -48,6 +48,10 @@ pub enum Commands {
         /// Set an extension field (repeatable, KEY=VALUE format)
         #[arg(long = "set", num_args = 1)]
         sets: Vec<String>,
+
+        /// Parent item ID (full, bare hex, or prefix)
+        #[arg(long)]
+        parent: Option<String>,
     },
 
     /// List items
@@ -59,6 +63,10 @@ pub enum Commands {
         /// Filter by tag
         #[arg(long)]
         tag: Option<String>,
+
+        /// Filter by parent ID (direct children only)
+        #[arg(long)]
+        parent: Option<String>,
     },
 
     /// Show a single item
@@ -103,6 +111,14 @@ pub enum Commands {
         /// Set an extension field (repeatable, KEY=VALUE format)
         #[arg(long = "set", num_args = 1)]
         sets: Vec<String>,
+
+        /// Set a new parent ID (mutually exclusive with --parent-clear)
+        #[arg(long, conflicts_with = "parent_clear")]
+        parent: Option<String>,
+
+        /// Clear the parent field (mutually exclusive with --parent)
+        #[arg(long = "parent-clear")]
+        parent_clear: bool,
     },
 
     /// Remove an item

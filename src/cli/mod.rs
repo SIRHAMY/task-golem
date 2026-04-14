@@ -16,8 +16,22 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             deps,
             tags,
             sets,
-        } => commands::add::run(cli.json, title, description, priority, deps, tags, sets),
-        Commands::List { status, tag } => commands::list::run(cli.json, cli.verbose, status, tag),
+            parent,
+        } => commands::add::run(
+            cli.json,
+            title,
+            description,
+            priority,
+            deps,
+            tags,
+            sets,
+            parent,
+        ),
+        Commands::List {
+            status,
+            tag,
+            parent,
+        } => commands::list::run(cli.json, cli.verbose, status, tag, parent),
         Commands::Show { id } => commands::show::run(cli.json, id),
         Commands::Edit {
             id,
@@ -29,6 +43,8 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             add_tags,
             rm_tags,
             sets,
+            parent,
+            parent_clear,
         } => commands::edit::run(
             cli.json,
             id,
@@ -40,6 +56,8 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             add_tags,
             rm_tags,
             sets,
+            parent,
+            parent_clear,
         ),
         Commands::Rm {
             id,

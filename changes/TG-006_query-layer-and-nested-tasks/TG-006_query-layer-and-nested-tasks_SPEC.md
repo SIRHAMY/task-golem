@@ -143,7 +143,7 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 > Wire `--parent` into `add`/`edit`, block destructive ops on parents with children, add `list --parent` filter and `show` Children section.
 
-**Phase Status:** not_started
+**Phase Status:** completed
 
 **Complexity:** Med
 
@@ -172,24 +172,24 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 **Tasks:**
 
-- [ ] Add clap flags for `--parent`/`--parent-clear` on Add/Edit/List in `src/cli/args.rs`.
-- [ ] Wire `add` to validate `--parent` via `reparent` before `save_active`. Load the archive (`Store::load_all_archive()`) inside the `with_lock` closure to pass to `reparent`.
-- [ ] Wire `edit` to handle `--parent` and `--parent-clear` via `reparent`. Load the archive inside the `with_lock` closure to pass to `reparent`.
-- [ ] Note in Phase Notes that the archive is re-read on every parent-mutating edit; if this becomes hot (measurable), introduce a `Store::archive_has_id(&str)` helper in a follow-up.
-- [ ] Block `rm` when active children exist; return typed error with IDs.
-- [ ] Update the `archive` sweep to skip `done` candidates that have active children; emit a per-candidate warning naming the child IDs; continue processing other candidates. Return nonzero only if zero candidates succeeded because of blocks (otherwise succeed with warnings).
-- [ ] Implement `--parent` filter in `list` (combines with existing filters).
-- [ ] Render "Children:" section in `show` (sorted, capped at 10, `(N more)` suffix).
-- [ ] Write tests: `add --parent <id>`, `add --parent <bogus>` (errors), `edit --parent <id>`, `edit --parent-clear`, `rm <parent-with-children>` rejected, `archive <parent-with-children>` rejected, `list --parent <id>`, `show <parent>` includes Children, `show <leaf>` omits Children.
+- [x] Add clap flags for `--parent`/`--parent-clear` on Add/Edit/List in `src/cli/args.rs`.
+- [x] Wire `add` to validate `--parent` via `reparent` before `save_active`. Load the archive (`Store::load_all_archive()`) inside the `with_lock` closure to pass to `reparent`.
+- [x] Wire `edit` to handle `--parent` and `--parent-clear` via `reparent`. Load the archive inside the `with_lock` closure to pass to `reparent`.
+- [x] Note in Phase Notes that the archive is re-read on every parent-mutating edit; if this becomes hot (measurable), introduce a `Store::archive_has_id(&str)` helper in a follow-up.
+- [x] Block `rm` when active children exist; return typed error with IDs.
+- [x] Update the `archive` sweep to skip `done` candidates that have active children; emit a per-candidate warning naming the child IDs; continue processing other candidates. Return nonzero only if zero candidates succeeded because of blocks (otherwise succeed with warnings).
+- [x] Implement `--parent` filter in `list` (combines with existing filters).
+- [x] Render "Children:" section in `show` (sorted, capped at 10, `(N more)` suffix).
+- [x] Write tests: `add --parent <id>`, `add --parent <bogus>` (errors), `edit --parent <id>`, `edit --parent-clear`, `rm <parent-with-children>` rejected, `archive <parent-with-children>` rejected, `list --parent <id>`, `show <parent>` includes Children, `show <leaf>` omits Children.
 
 **Verification:**
 
-- [ ] `just check` passes.
-- [ ] `tg add "child" --parent <id>` round-trips and `tg show <id>` displays the child.
-- [ ] `tg rm <parent>` is rejected with a clear error pointing at child IDs.
-- [ ] `tg list --parent <id>` returns only direct children.
-- [ ] All existing CLI tests pass unchanged.
-- [ ] Code review passes.
+- [x] `just check` passes.
+- [x] `tg add "child" --parent <id>` round-trips and `tg show <id>` displays the child.
+- [x] `tg rm <parent>` is rejected with a clear error pointing at child IDs.
+- [x] `tg list --parent <id>` returns only direct children.
+- [x] All existing CLI tests pass unchanged.
+- [x] Code review passes.
 
 **Commit:** `[TG-006][P2] Feature: Wire parent field into CLI commands`
 
@@ -197,6 +197,9 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 - Archived tasks may retain dangling parent refs (if parent was later removed). Phase 5 doctor repairs these. Do not repair during normal commands.
 - `--parent` on `list` uses direct children only — not recursive descendants. Recursive traversal is a Phase 4 `tg query` use case.
+- The archive is re-read on every parent-mutating `add`/`edit` (via `Store::load_all_archive`). At solo-dev scale this is fine. If it becomes measurably hot, introduce a `Store::archive_has_id(&str) -> bool` fast-path that streams the archive for a single ID check without full deserialization. Tracked as a followup.
+- `tg archive` sweep now returns nonzero exit with `TgError::InvalidInput` when every done candidate is blocked by active children. When at least one candidate succeeds, the sweep exits zero and writes warnings to stderr for skipped candidates, preserving forward progress. The JSON envelope gains `skipped` and `skipped_ids` keys.
+- `--force` on `tg rm` intentionally does NOT bypass the children check. Orphaning children silently is a harder-to-reverse invariant violation than dangling deps (which `--force --clear-deps` already handles). Users must explicitly reparent or delete children first.
 
 **Followups:**
 
