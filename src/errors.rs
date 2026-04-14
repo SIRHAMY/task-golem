@@ -61,6 +61,17 @@ pub enum TgError {
 
     #[error("Unsupported schema version {found} (max supported: {supported})")]
     SchemaVersionUnsupported { found: u32, supported: u32 },
+
+    #[error("Cache corrupt: {detail}")]
+    CacheCorrupt { detail: String },
+
+    #[error("Cache rebuild failed: {detail}")]
+    CacheRebuildFailed { detail: String },
+
+    #[error(
+        "Cache schema version mismatch (stored: {stored}, expected: {expected}); rebuild required"
+    )]
+    CacheSchemaVersionMismatch { stored: u32, expected: u32 },
 }
 
 impl TgError {
@@ -83,7 +94,10 @@ impl TgError {
             | TgError::LockTimeout(_)
             | TgError::IoError(_)
             | TgError::IdCollisionExhausted(_)
-            | TgError::SchemaVersionUnsupported { .. } => 2,
+            | TgError::SchemaVersionUnsupported { .. }
+            | TgError::CacheCorrupt { .. }
+            | TgError::CacheRebuildFailed { .. }
+            | TgError::CacheSchemaVersionMismatch { .. } => 2,
         }
     }
 

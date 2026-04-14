@@ -97,6 +97,52 @@ fn init_json_output() {
 }
 
 #[test]
+fn init_creates_gitignore_with_cache_lines() {
+    let project = common::TestProject::new().unwrap();
+    let gi = project.project_dir().join(".gitignore");
+    assert!(
+        gi.exists(),
+        ".task-golem/.gitignore should exist after init"
+    );
+    let content = fs::read_to_string(&gi).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(lines.contains(&"cache.db"), "missing cache.db: {}", content);
+    assert!(
+        lines.contains(&"cache.db-journal"),
+        "missing cache.db-journal: {}",
+        content
+    );
+    assert!(
+        lines.contains(&"cache.db.tmp-*"),
+        "missing cache.db.tmp-*: {}",
+        content
+    );
+}
+
+#[test]
+fn init_gitignore_is_idempotent() {
+    // Pre-seed a gitignore with an existing user line; re-running init must keep it.
+    let project = common::TestProject::new_uninit().unwrap();
+    let dir = project.project_dir();
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(".gitignore"), "user-line\n").unwrap();
+
+    let output = project.run_tg(&["init", "--force"]);
+    assert!(output.status.success(), "init --force should succeed");
+
+    let content = fs::read_to_string(dir.join(".gitignore")).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(
+        lines.contains(&"user-line"),
+        "user line preserved: {}",
+        content
+    );
+    assert!(lines.contains(&"cache.db"));
+    // Idempotency: each cache line appears exactly once.
+    assert_eq!(lines.iter().filter(|l| **l == "cache.db").count(), 1);
+}
+
+#[test]
 fn init_json_output_matches_schema() {
     let json = {
         let project = common::TestProject::new_uninit().unwrap();

@@ -4,14 +4,33 @@ pub mod lock;
 pub mod root;
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::errors::TgError;
 use crate::model::item::Item;
 
+/// Gitignore lines that keep the SQLite cache out of git.
+/// Exposed for both `Store::ensure_gitignore` and doctor checks.
+pub const CACHE_GITIGNORE_LINES: &[&str] = &["cache.db", "cache.db-journal", "cache.db.tmp-*"];
+
 #[derive(Clone)]
 pub struct Store {
     project_dir: PathBuf,
+}
+
+/// Cached path state derived from the project directory.
+///
+/// Kept as methods instead of fields so the store stays cheaply cloneable.
+impl Store {
+    /// Path to the cache database. Shared between `cache::open_or_rebuild` and doctor.
+    pub fn cache_db_path(&self) -> PathBuf {
+        self.project_dir.join("cache.db")
+    }
+
+    /// Path to the cache-module gitignore (lives alongside cache.db).
+    pub fn gitignore_path(&self) -> PathBuf {
+        self.project_dir.join(".gitignore")
+    }
 }
 
 impl Store {
@@ -21,6 +40,18 @@ impl Store {
 
     pub fn tasks_path(&self) -> PathBuf {
         self.project_dir.join("tasks.jsonl")
+    }
+
+    /// Borrowed accessor used by the cache module (avoids an extra PathBuf clone
+    /// on every rebuild). Kept distinct from `tasks_path` to keep ownership
+    /// semantics clear at the call site.
+    pub fn tasks_jsonl_path(&self) -> PathBuf {
+        self.tasks_path()
+    }
+
+    /// Project directory (`.task-golem/`). Exposed for the cache module.
+    pub fn project_dir(&self) -> &Path {
+        &self.project_dir
     }
 
     pub fn archive_path(&self) -> PathBuf {
@@ -83,5 +114,58 @@ impl Store {
     /// Append a single item to the archive file.
     pub fn append_to_archive(&self, item: &Item) -> Result<(), TgError> {
         jsonl::append_to_archive(&self.archive_path(), item)
+    }
+
+    /// Ensure `.task-golem/.gitignore` exists and covers all cache-related artifacts.
+    ///
+    /// Idempotent: reads existing lines, appends only missing ones. Preserves the
+    /// existing file's trailing-newline shape so user-managed lines are untouched.
+    pub fn ensure_gitignore(&self) -> Result<(), TgError> {
+        use std::fs;
+        use std::io::Write;
+
+        let path = self.gitignore_path();
+        let existing = match fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(TgError::IoError(e)),
+        };
+
+        let present: HashSet<&str> = existing
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect();
+
+        let missing: Vec<&str> = CACHE_GITIGNORE_LINES
+            .iter()
+            .copied()
+            .filter(|line| !present.contains(line))
+            .collect();
+
+        if missing.is_empty() {
+            return Ok(());
+        }
+
+        // Append with a leading newline if the existing file doesn't already end in one
+        // (preserves user's existing file shape).
+        let needs_leading_newline = !existing.is_empty() && !existing.ends_with('\n');
+
+        let mut f = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(TgError::IoError)?;
+
+        if needs_leading_newline {
+            writeln!(f).map_err(TgError::IoError)?;
+        }
+
+        for line in missing {
+            writeln!(f, "{}", line).map_err(TgError::IoError)?;
+        }
+
+        f.sync_all().map_err(TgError::IoError)?;
+        Ok(())
     }
 }

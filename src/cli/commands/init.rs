@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::cli::output;
 use task_golem::errors::TgError;
-use task_golem::store::jsonl;
+use task_golem::store::{Store, jsonl};
 
 const PROJECT_DIR: &str = ".task-golem";
 
@@ -60,6 +60,9 @@ fn create_project(project_dir: &Path) -> Result<(), TgError> {
 
     // Create empty lock file
     fs::File::create(project_dir.join("tasks.lock")).map_err(TgError::IoError)?;
+
+    // Ensure .gitignore covers cache artifacts (idempotent).
+    Store::new(project_dir.to_path_buf()).ensure_gitignore()?;
 
     Ok(())
 }

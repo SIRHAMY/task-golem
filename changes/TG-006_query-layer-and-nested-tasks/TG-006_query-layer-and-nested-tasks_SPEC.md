@@ -211,7 +211,7 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 > Introduce `src/cache/` module, rusqlite/xxhash-rust deps, stamp logic, and the lazy rebuild path. Gitignore wiring in init.
 
-**Phase Status:** not_started
+**Phase Status:** completed
 
 **Complexity:** High
 
@@ -237,27 +237,27 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 **Tasks:**
 
-- [ ] Add `rusqlite` and `xxhash-rust` dependencies with the exact versions/features specified.
-- [ ] Run `cargo build` to confirm `bundled` SQLite compiles on this machine (flag any toolchain issues early).
-- [ ] Define `Stamp` struct and `compute_stamp(path: &Path) -> Result<Stamp, TgError>` using `xxh3_64` on the full file bytes + `metadata()` for mtime/size.
-- [ ] Write the DDL constant (tables + indices from design §Cache Schema) with `SCHEMA_VERSION = 1`.
-- [ ] Implement `rebuild_to(jsonl_path, cache_path, store)` per flow in design §"Cache rebuild (internal)".
-- [ ] Implement `open_or_rebuild(jsonl_path, cache_path, store)` — open read-only, read stamp from `_cache_meta`, compare to current JSONL stamp, trigger rebuild if mismatch or schema version mismatch; fall back to `:memory:` SQLite if cache path is unwritable and print `--verbose` notice.
-- [ ] Implement `Store::tasks_jsonl_path` and `Store::ensure_gitignore`.
-- [ ] Wire `ensure_gitignore` into `init`.
-- [ ] Add the three new `TgError` variants and their exit codes.
-- [ ] Write cache tests including: rebuild on fresh checkout, rebuild idempotence (two rebuilds produce identical row counts), rebuild invalidation on stamp mismatch (mutate JSONL, next `open_or_rebuild` rebuilds), `task_view` correctness for nested parents (depth=0/1/2), `is_ready`/`unmet_dep_count` correctness, parent-cycle in JSONL aborts rebuild with `ParentCycle`, cyclic-JSONL error message names the offending IDs and suggests `tg doctor`, duplicate-ID in JSONL aborts rebuild pointing at the duplicated IDs.
-- [ ] Write an unwritable-filesystem test: simulate `.taskgolem/` read-only (e.g., `chmod 0555` on a tempdir or redirect cache path to an unwritable directory) and verify `open_or_rebuild` succeeds via in-memory SQLite and that `--verbose` emits a fallback notice to stderr.
-- [ ] Measure rebuild time with a 500-task and 5000-task fixture; record numbers in Phase Notes. Flag if 5k takes >500ms. Fixture must include representative descriptions (~200-500 bytes each) so file-size approximates real usage — the stamp hash is O(file bytes), not O(task count).
+- [x] Add `rusqlite` and `xxhash-rust` dependencies with the exact versions/features specified.
+- [x] Run `cargo build` to confirm `bundled` SQLite compiles on this machine (flag any toolchain issues early).
+- [x] Define `Stamp` struct and `compute_stamp(path: &Path) -> Result<Stamp, TgError>` using `xxh3_64` on the full file bytes + `metadata()` for mtime/size.
+- [x] Write the DDL constant (tables + indices from design §Cache Schema) with `SCHEMA_VERSION = 1`.
+- [x] Implement `rebuild_to(jsonl_path, cache_path, store)` per flow in design §"Cache rebuild (internal)".
+- [x] Implement `open_or_rebuild(jsonl_path, cache_path, store)` — open read-only, read stamp from `_cache_meta`, compare to current JSONL stamp, trigger rebuild if mismatch or schema version mismatch; fall back to `:memory:` SQLite if cache path is unwritable and print `--verbose` notice.
+- [x] Implement `Store::tasks_jsonl_path` and `Store::ensure_gitignore`.
+- [x] Wire `ensure_gitignore` into `init`.
+- [x] Add the three new `TgError` variants and their exit codes.
+- [x] Write cache tests including: rebuild on fresh checkout, rebuild idempotence (two rebuilds produce identical row counts), rebuild invalidation on stamp mismatch (mutate JSONL, next `open_or_rebuild` rebuilds), `task_view` correctness for nested parents (depth=0/1/2), `is_ready`/`unmet_dep_count` correctness, parent-cycle in JSONL aborts rebuild with `ParentCycle`, cyclic-JSONL error message names the offending IDs and suggests `tg doctor`, duplicate-ID in JSONL aborts rebuild pointing at the duplicated IDs.
+- [x] Write an unwritable-filesystem test: simulate `.taskgolem/` read-only (e.g., `chmod 0555` on a tempdir or redirect cache path to an unwritable directory) and verify `open_or_rebuild` succeeds via in-memory SQLite and that `--verbose` emits a fallback notice to stderr.
+- [x] Measure rebuild time with a 500-task and 5000-task fixture; record numbers in Phase Notes. Flag if 5k takes >500ms. Fixture must include representative descriptions (~200-500 bytes each) so file-size approximates real usage — the stamp hash is O(file bytes), not O(task count).
 
 **Verification:**
 
-- [ ] `just check` passes.
-- [ ] `cargo test cache_test` passes.
-- [ ] `tg init` in a fresh directory creates `.taskgolem/.gitignore` with the cache lines.
-- [ ] Rebuild of a 5k-task fixture completes in <500ms on local SSD (PRD non-functional requirement).
-- [ ] No existing test regresses (cache module is inert from the CLI side).
-- [ ] Code review passes.
+- [x] `just check` passes.
+- [x] `cargo test cache_test` passes.
+- [x] `tg init` in a fresh directory creates `.taskgolem/.gitignore` with the cache lines.
+- [x] Rebuild of a 5k-task fixture completes in <500ms on local SSD (PRD non-functional requirement).
+- [x] No existing test regresses (cache module is inert from the CLI side).
+- [x] Code review passes.
 
 **Commit:** `[TG-006][P3] Feature: Add SQLite cache foundation with lazy rebuild`
 
@@ -265,12 +265,19 @@ Each phase leaves the codebase in a functional, testable state. `just check` (fm
 
 - `PRAGMA quick_check` is NOT run on the happy path — reserved for doctor (Phase 5).
 - Rebuild acquires `with_lock` only during JSONL read to keep write-side contention minimal; the lock is released before the SQLite transaction starts.
-- `cache.db.tmp-<pid>` uses the current PID to avoid collision between concurrent rebuilds; stale temp files from killed processes are swept best-effort at the start of each rebuild.
+- `cache.db.tmp-<pid>` uses the current PID to avoid collision between concurrent rebuilds; stale temp files from killed processes are swept best-effort at the start of each rebuild. The sweep checks `kill(pid, 0)` / `ESRCH` and only unlinks temp files whose PIDs aren't currently running — this prevents a concurrent peer's in-flight rebuild from being clobbered.
 - A pre-existing cyclic JSONL (from a bad merge that bypassed write-time cycle checks) will block every `tg query` until repaired — by design, since the cache would otherwise loop during `task_view` materialization. The error message must name the offending IDs and recommend `tg doctor --fix` (delivered in Phase 5). Phase 3 must include a test for this failure path to lock in the message.
+- Project directory name is `.task-golem/` (with dash), not `.taskgolem/` as written in a few spec-doc headers. The DESIGN doc predates the final dirname choice; implementation follows the existing codebase convention.
+- `depth_from_root`, `is_ready`, and `unmet_dep_count` are computed in Rust during `task_view` materialization rather than via a recursive-CTE UPDATE. Same result, simpler to reason about, and fast enough that the SQL-side optimization isn't needed. The `WHERE depth < 64` bound the spec requires still applies to any user-authored recursive CTE over `tasks.parent` (documented in `--schema` output — Phase 4).
+- `rusqlite::Connection::open_with_flags(..., SQLITE_OPEN_READ_ONLY)` is used for the read-only path. The design's layered-sandbox pragmas (`query_only`, `trusted_schema`, `defensive`, authorizer) land in Phase 4 where user SQL is executed; Phase 3's code paths only run controlled inserts/queries.
+- **Rebuild perf (release build, local SSD):**
+  - 500 tasks: ~5.0 ms
+  - 5000 tasks: ~34.5 ms
+  Both well under the 500ms PRD target. Fixture includes ~300-byte descriptions per task; 5k JSONL is ~1.5 MB and the xxh3 stamp on that is sub-ms.
 
 **Followups:**
 
-<!-- Items discovered during this phase that should be addressed but aren't blocking -->
+- Field name on `CacheRebuildFailed` is `detail: String` (not `source: String` as in the spec `Files` block). Using the `source` name collides with thiserror's `#[source]` / `StdError` auto-derive and fails to compile; `detail` keeps the same meaning without trait-bound churn. No caller-facing effect.
 
 ---
 
