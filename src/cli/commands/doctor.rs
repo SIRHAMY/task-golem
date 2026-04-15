@@ -4,14 +4,17 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::cli::output;
 use task_golem::cache;
 use task_golem::errors::TgError;
+use task_golem::events::archive as events_archive;
+use task_golem::events::record::{CURRENT_EVENT_SCHEMA_VERSION, Event, EventType};
 use task_golem::model::deps;
 use task_golem::model::item::Item;
+use task_golem::model::status::Status;
 use task_golem::store::root;
 use task_golem::store::{CACHE_GITIGNORE_LINES, Store};
 
@@ -87,6 +90,38 @@ pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
     // 11. Cache consistency — rebuild into a temp DB, compare schema_version + row counts.
     //     On drift, repair by atomic-rename (handled in the --fix block below).
     let cache_drift_tmp = check_cache_drift(&store, &mut issues);
+
+    // 12. Events integrity (TG-008 P5):
+    //     - events_malformed: JSON lines that don't parse as a v1 Event.
+    //     - events_drift_status_mismatch: most-recent status_transition
+    //       disagrees with the task's current status.
+    //     - events_orphan: events whose task_id is absent from active +
+    //       archive + archive-pruned.
+    //     - events_in_active_for_archived_task: events for archived tasks
+    //       still in events.jsonl (repaired by --fix via move_for_task).
+    //     - events_dup_across_active_and_archive: events present in both
+    //       files (crash window in move_for_task; repaired by --fix by
+    //       dropping dups from active).
+    let pruned_ids = load_pruned_ids(&store);
+    let active_events = load_events_lenient(&store.events_path());
+    let archive_events = load_events_lenient(&store.events_archive_path());
+    check_events_malformed(&store.events_path(), "events.jsonl", &mut issues);
+    check_events_malformed(
+        &store.events_archive_path(),
+        "events.archive.jsonl",
+        &mut issues,
+    );
+    check_events_drift(&active_items, &active_events, &mut issues);
+    check_events_orphan(
+        &active_events,
+        &archive_events,
+        &active_ids,
+        &archive_ids,
+        &pruned_ids,
+        &mut issues,
+    );
+    check_events_in_active_for_archived(&active_events, &archive_ids, &mut issues);
+    check_events_dup_across_files(&active_events, &archive_events, &mut issues);
 
     // Apply fixes if requested
     let mut fixed_count = 0;
@@ -187,6 +222,54 @@ pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
         if gitignore_needs_repair {
             store.ensure_gitignore()?;
             fixed_count += 1;
+        }
+
+        // Fix: events in active for archived tasks — move to archive via the
+        // same helper used by the archive flow. Collect unique task_ids from
+        // the relevant issues' details.
+        let archived_task_ids_to_move: HashSet<String> = issues
+            .iter()
+            .filter(|i| i.issue_type == "events_in_active_for_archived_task")
+            .filter_map(|i| i.details.clone())
+            .collect();
+        if !archived_task_ids_to_move.is_empty() {
+            let events_count = store.with_lock(|store| {
+                let mut count = 0usize;
+                for tid in &archived_task_ids_to_move {
+                    count += events_archive::move_for_task(
+                        &store.events_path(),
+                        &store.events_archive_path(),
+                        tid,
+                    )?;
+                }
+                Ok::<_, TgError>(count)
+            })?;
+            fixed_count += events_count;
+        }
+
+        // Fix: duplicate events across active + archive — drop the duplicates
+        // from active. Rewrite events.jsonl with the deduplicated set. We
+        // re-read under lock so we observe any writes from concurrent notes
+        // that raced the check, then keep only events not present in
+        // archive_events (by the (task_id, ts_utc, text) key).
+        let dup_needs_repair = issues
+            .iter()
+            .any(|i| i.issue_type == "events_dup_across_active_and_archive");
+        if dup_needs_repair {
+            let dup_count = store.with_lock(|store| {
+                let active_evs = load_events_lenient(&store.events_path());
+                let archive_evs = load_events_lenient(&store.events_archive_path());
+                let archive_keys: HashSet<(String, i64, String)> =
+                    archive_evs.iter().map(event_dup_key).collect();
+                let (dups, keep): (Vec<Event>, Vec<Event>) = active_evs
+                    .into_iter()
+                    .partition(|e| archive_keys.contains(&event_dup_key(e)));
+                if !dups.is_empty() {
+                    rewrite_events_active_atomic(&store.events_path(), &keep)?;
+                }
+                Ok::<_, TgError>(dups.len())
+            })?;
+            fixed_count += dup_count;
         }
 
         if json_mode {
@@ -654,6 +737,292 @@ fn count_rows(conn: &rusqlite::Connection, table: &str) -> Option<i64> {
     // Table name is from a static allowlist above — safe to interpolate.
     let sql = format!("SELECT COUNT(*) FROM {}", table);
     conn.query_row(&sql, [], |row| row.get::<_, i64>(0)).ok()
+}
+
+// ----- Events integrity checks (TG-008 P5) -----
+
+/// Lenient event loader used by doctor. Mirrors `events::read::all` but does
+/// not emit stderr warnings (the `events_malformed` check is the surfacing
+/// mechanism — we don't want noise on every doctor pass).
+fn load_events_lenient(path: &std::path::Path) -> Vec<Event> {
+    if !path.exists() {
+        return vec![];
+    }
+    let file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return vec![],
+    };
+    let reader = BufReader::new(file);
+    let mut events: Vec<Event> = Vec::new();
+    for line_result in reader.lines() {
+        let line = match line_result {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Prelude-first: skip unknown schema versions silently to match the
+        // library reader's forward-compat posture.
+        if let Ok(prelude) = serde_json::from_str::<serde_json::Value>(&line)
+            && let Some(v) = prelude.get("v").and_then(|v| v.as_u64())
+            && v as u32 != CURRENT_EVENT_SCHEMA_VERSION
+        {
+            continue;
+        }
+        if let Ok(event) = serde_json::from_str::<Event>(&line) {
+            events.push(event);
+        }
+    }
+    events
+}
+
+/// Load task IDs from `archive-pruned.jsonl`, if it exists. Used by the orphan
+/// check to avoid flagging events for tasks that were intentionally pruned.
+/// Lenient: skips the schema header (parses as a non-Item) and any line that
+/// doesn't round-trip as an `Item`.
+fn load_pruned_ids(store: &Store) -> HashSet<String> {
+    let path = store.project_dir().join("archive-pruned.jsonl");
+    if !path.exists() {
+        return HashSet::new();
+    }
+    let file = match fs::File::open(&path) {
+        Ok(f) => f,
+        Err(_) => return HashSet::new(),
+    };
+    let reader = BufReader::new(file);
+    let mut ids = HashSet::new();
+    for line_result in reader.lines() {
+        if let Ok(line) = line_result
+            && !line.trim().is_empty()
+            && let Ok(item) = serde_json::from_str::<Item>(&line)
+        {
+            ids.insert(item.id);
+        }
+    }
+    ids
+}
+
+/// Check for malformed event lines. Emits one issue per malformed line with
+/// the file name + 1-based line number in `details`.
+fn check_events_malformed(path: &std::path::Path, file_name: &str, issues: &mut Vec<Issue>) {
+    if !path.exists() {
+        return;
+    }
+    let file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            issues.push(Issue {
+                issue_type: "events_malformed".to_string(),
+                severity: "error".to_string(),
+                message: format!("Cannot open {}: {}", file_name, e),
+                details: None,
+            });
+            return;
+        }
+    };
+    let reader = BufReader::new(file);
+    for (i, line_result) in reader.lines().enumerate() {
+        let line_num = i + 1;
+        let line = match line_result {
+            Ok(l) => l,
+            Err(e) => {
+                issues.push(Issue {
+                    issue_type: "events_malformed".to_string(),
+                    severity: "error".to_string(),
+                    message: format!("{}:{}: read error: {}", file_name, line_num, e),
+                    details: Some(format!("{}:{}", file_name, line_num)),
+                });
+                continue;
+            }
+        };
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Peek at `v` first: unknown versions are forward-compat (not
+        // malformed). A line that won't parse as JSON at all is malformed.
+        let prelude: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(e) => {
+                issues.push(Issue {
+                    issue_type: "events_malformed".to_string(),
+                    severity: "error".to_string(),
+                    message: format!("{}:{}: invalid JSON: {}", file_name, line_num, e),
+                    details: Some(format!("{}:{}", file_name, line_num)),
+                });
+                continue;
+            }
+        };
+        let v = prelude.get("v").and_then(|v| v.as_u64()).map(|v| v as u32);
+        if v != Some(CURRENT_EVENT_SCHEMA_VERSION) {
+            // Unknown version: skip silently (forward-compat).
+            continue;
+        }
+        if let Err(e) = serde_json::from_str::<Event>(&line) {
+            issues.push(Issue {
+                issue_type: "events_malformed".to_string(),
+                severity: "error".to_string(),
+                message: format!("{}:{}: malformed event: {}", file_name, line_num, e),
+                details: Some(format!("{}:{}", file_name, line_num)),
+            });
+        }
+    }
+}
+
+/// Check that each active task's most-recent `status_transition` event's
+/// target status matches the task's current status. Skips tasks with no
+/// events (pre-TG-008 tasks or never-transitioned tasks).
+fn check_events_drift(active_items: &[Item], active_events: &[Event], issues: &mut Vec<Issue>) {
+    // Index most-recent status_transition per task_id.
+    let mut latest: HashMap<String, (DateTime<Utc>, Status)> = HashMap::new();
+    for event in active_events {
+        if event.event_type != EventType::StatusTransition {
+            continue;
+        }
+        let Some(status) = event.status else {
+            continue;
+        };
+        latest
+            .entry(event.task_id.clone())
+            .and_modify(|(ts, st)| {
+                if event.ts > *ts {
+                    *ts = event.ts;
+                    *st = status;
+                }
+            })
+            .or_insert((event.ts, status));
+    }
+    for item in active_items {
+        if let Some((ts, expected_status)) = latest.get(&item.id)
+            && *expected_status != item.status
+        {
+            issues.push(Issue {
+                issue_type: "events_drift_status_mismatch".to_string(),
+                severity: "warning".to_string(),
+                message: format!(
+                    "Task '{}' status '{}' disagrees with most-recent status_transition event '{}' at {}",
+                    item.id, item.status, expected_status, ts
+                ),
+                details: Some(item.id.clone()),
+            });
+        }
+    }
+}
+
+/// Flag events whose `task_id` is absent from active + archive + pruned.
+fn check_events_orphan(
+    active_events: &[Event],
+    archive_events: &[Event],
+    active_ids: &HashSet<String>,
+    archive_ids: &HashSet<String>,
+    pruned_ids: &HashSet<String>,
+    issues: &mut Vec<Issue>,
+) {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for e in active_events.iter().chain(archive_events.iter()) {
+        if !active_ids.contains(&e.task_id)
+            && !archive_ids.contains(&e.task_id)
+            && !pruned_ids.contains(&e.task_id)
+        {
+            *counts.entry(e.task_id.clone()).or_insert(0) += 1;
+        }
+    }
+    for (task_id, count) in counts {
+        issues.push(Issue {
+            issue_type: "events_orphan".to_string(),
+            severity: "warning".to_string(),
+            message: format!(
+                "Orphan events for task_id '{}' ({} event(s); task not in active, archive, or pruned)",
+                task_id, count
+            ),
+            details: Some(task_id),
+        });
+    }
+}
+
+/// Flag events present in `events.jsonl` whose `task_id` is in `archive.jsonl`.
+fn check_events_in_active_for_archived(
+    active_events: &[Event],
+    archive_task_ids: &HashSet<String>,
+    issues: &mut Vec<Issue>,
+) {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for e in active_events {
+        if archive_task_ids.contains(&e.task_id) {
+            *counts.entry(e.task_id.clone()).or_insert(0) += 1;
+        }
+    }
+    for (task_id, count) in counts {
+        issues.push(Issue {
+            issue_type: "events_in_active_for_archived_task".to_string(),
+            severity: "warning".to_string(),
+            message: format!(
+                "{} event(s) in events.jsonl for archived task '{}' — will be moved on --fix",
+                count, task_id
+            ),
+            details: Some(task_id),
+        });
+    }
+}
+
+/// Flag events that appear in both `events.jsonl` and `events.archive.jsonl`
+/// (key: `(task_id, ts, text)`). Indicates an interrupted `move_for_task`.
+fn check_events_dup_across_files(
+    active_events: &[Event],
+    archive_events: &[Event],
+    issues: &mut Vec<Issue>,
+) {
+    let archive_keys: HashSet<(String, i64, String)> =
+        archive_events.iter().map(event_dup_key).collect();
+    let mut dup_task_ids: HashMap<String, usize> = HashMap::new();
+    for e in active_events {
+        let key = event_dup_key(e);
+        if archive_keys.contains(&key) {
+            *dup_task_ids.entry(e.task_id.clone()).or_insert(0) += 1;
+        }
+    }
+    for (task_id, count) in dup_task_ids {
+        issues.push(Issue {
+            issue_type: "events_dup_across_active_and_archive".to_string(),
+            severity: "warning".to_string(),
+            message: format!(
+                "{} event(s) for task '{}' appear in both events.jsonl and events.archive.jsonl — will be removed from active on --fix",
+                count, task_id
+            ),
+            details: Some(task_id),
+        });
+    }
+}
+
+/// Key used to detect duplicate events across active/archive. Uses microsecond
+/// precision timestamps (matching the on-disk format) so two events stamped
+/// the same instant but with different content are treated as distinct.
+fn event_dup_key(e: &Event) -> (String, i64, String) {
+    (e.task_id.clone(), e.ts.timestamp_micros(), e.text.clone())
+}
+
+/// Atomic rewrite of `events.jsonl` with the given events. Used only by the
+/// dup-repair fix path. Inline here (rather than reusing the headerless
+/// rewriter inside `events::archive`) to keep the cross-module surface
+/// narrow. Same durability contract: tempfile in same directory, fsync,
+/// rename.
+fn rewrite_events_active_atomic(path: &std::path::Path, events: &[Event]) -> Result<(), TgError> {
+    use std::io::Write;
+    let dir = path.parent().ok_or_else(|| {
+        TgError::IoError(std::io::Error::other(
+            "cannot determine parent dir for events.jsonl rewrite",
+        ))
+    })?;
+    let mut tmp = tempfile::NamedTempFile::new_in(dir).map_err(TgError::IoError)?;
+    for event in events {
+        let line = serde_json::to_string(event)
+            .expect("Event serialization cannot fail: all fields are safely typed");
+        tmp.write_all(line.as_bytes()).map_err(TgError::IoError)?;
+        tmp.write_all(b"\n").map_err(TgError::IoError)?;
+    }
+    tmp.as_file().sync_all().map_err(TgError::IoError)?;
+    tmp.persist(path).map_err(|e| TgError::IoError(e.error))?;
+    Ok(())
 }
 
 fn check_gitignore_missing(store: &Store, issues: &mut Vec<Issue>) {

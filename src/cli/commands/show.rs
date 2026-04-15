@@ -1,11 +1,14 @@
+use std::io::{self, IsTerminal};
+
 use crate::cli::output;
 use task_golem::errors::TgError;
+use task_golem::events::{self, Event};
 use task_golem::model::id;
 use task_golem::model::item::Item;
 use task_golem::store::Store;
 use task_golem::store::root;
 
-pub fn run(json_mode: bool, id_input: String) -> Result<(), TgError> {
+pub fn run(json_mode: bool, id_input: String, show_events: bool) -> Result<(), TgError> {
     let project_dir = root::find_project_root_from_cwd()?;
     let store = Store::new(project_dir);
 
@@ -28,6 +31,9 @@ pub fn run(json_mode: bool, id_input: String) -> Result<(), TgError> {
             if !children.is_empty() {
                 output::print_children_section(&children);
             }
+            if show_events {
+                print_events_for(&store, &resolved_id)?;
+            }
         }
         return Ok(());
     }
@@ -45,11 +51,30 @@ pub fn run(json_mode: bool, id_input: String) -> Result<(), TgError> {
             if !children.is_empty() {
                 output::print_children_section(&children);
             }
+            if show_events {
+                print_events_for(&store, &resolved_id)?;
+            }
         }
         return Ok(());
     }
 
     Err(TgError::ItemNotFound(id_input))
+}
+
+/// Load + merge events from active and archive, sort by ts, render via the
+/// shared helper. Mirrors `cli::commands::events::run` so `tg show --events`
+/// and `tg events <id>` produce byte-identical event tables.
+fn print_events_for(store: &Store, resolved_id: &str) -> Result<(), TgError> {
+    let mut merged: Vec<Event> = Vec::new();
+    merged.extend(events::read::for_task(&store.events_path(), resolved_id)?);
+    merged.extend(events::read::for_task(
+        &store.events_archive_path(),
+        resolved_id,
+    )?);
+    merged.sort_by(|a, b| a.ts.cmp(&b.ts));
+    let is_tty = io::stdout().is_terminal();
+    output::print_events_human(&merged, is_tty);
+    Ok(())
 }
 
 /// Collect direct children of `parent_id`, sorted by priority desc then id asc.

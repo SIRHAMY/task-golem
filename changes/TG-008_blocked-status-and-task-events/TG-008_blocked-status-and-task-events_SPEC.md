@@ -364,7 +364,7 @@ Five phases, each leaving the codebase green (`just check`):
 
 > Integrity checks for events, `--blocked` alias on `tg list`, `--events` flag on `tg show`, and documentation in README + CLAUDE.md.
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Low-Med
 
@@ -396,27 +396,27 @@ Five phases, each leaving the codebase green (`just check`):
 
 **Tasks:**
 
-- [ ] Implement the five doctor checks. Explicit sub-task: load `archive-pruned.jsonl` IDs into the orphan-check "known" set.
-- [ ] Wire `--fix` repairs for `events_in_active_for_archived_task` (move via `events::archive::move_for_task`) and `events_dup_across_active_and_archive` (drop dups from active).
-- [ ] Add `--blocked` flag + list.rs handling (reject `--blocked` combined with `--status`).
-- [ ] Add `--events` flag + show.rs handling (calls shared `print_events_human` from Phase 4 — no refactor).
-- [ ] Add `TestProject::seed_raw_events` helper for doctor test fixturing.
-- [ ] Write doctor integration tests (seed each of the 5 conditions; assert `--fix` repairs the two that have repairs).
-- [ ] Write list / show integration tests (including byte-identical output between `tg events <id>` and the events section of `tg show <id> --events`).
-- [ ] Update README.md (including secrets warning).
-- [ ] Update CLAUDE.md (including secrets warning).
-- [ ] Bump Cargo.toml version 0.2.0 → 0.3.0 in a separate final commit for clean revert.
-- [ ] Run `just check` → green.
+- [x] Implement the five doctor checks. Explicit sub-task: load `archive-pruned.jsonl` IDs into the orphan-check "known" set.
+- [x] Wire `--fix` repairs for `events_in_active_for_archived_task` (move via `events::archive::move_for_task`) and `events_dup_across_active_and_archive` (drop dups from active).
+- [x] Add `--blocked` flag + list.rs handling (reject `--blocked` combined with `--status`).
+- [x] Add `--events` flag + show.rs handling (calls shared `print_events_human` from Phase 4 — no refactor).
+- [x] Add `TestProject::seed_raw_events` helper for doctor test fixturing.
+- [x] Write doctor integration tests (seed each of the 5 conditions; assert `--fix` repairs the two that have repairs).
+- [x] Write list / show integration tests (including byte-identical output between `tg events <id>` and the events section of `tg show <id> --events`).
+- [x] Update README.md (including secrets warning).
+- [x] Update CLAUDE.md (including secrets warning).
+- [x] Bump Cargo.toml version 0.2.0 → 0.3.0 in a separate final commit for clean revert.
+- [x] Run `just check` → green.
 
 **Verification:**
 
-- [ ] `cargo test` passes; new doctor/list/show tests pass.
-- [ ] `just check` green.
-- [ ] Manual smoke: corrupt `events.jsonl` with a malformed middle line → `tg doctor` reports it.
-- [ ] Manual smoke: `tg list --blocked` matches `tg list --status blocked`.
-- [ ] Manual smoke: `tg show <id>` unchanged from before this change (no events); `tg show <id> --events` appends event log.
-- [ ] Docs updated: README has `tg note`/`tg events` examples; CLAUDE.md has agent guidance.
-- [ ] Code review passes.
+- [x] `cargo test` passes; new doctor/list/show tests pass.
+- [x] `just check` green.
+- [x] Manual smoke: corrupt `events.jsonl` with a malformed middle line → `tg doctor` reports it.
+- [x] Manual smoke: `tg list --blocked` matches `tg list --status blocked`.
+- [x] Manual smoke: `tg show <id>` unchanged from before this change (no events); `tg show <id> --events` appends event log.
+- [x] Docs updated: README has `tg note`/`tg events` examples; CLAUDE.md has agent guidance.
+- [x] Code review passes.
 
 **Commit:** `[TG-008][P5] Feature: Doctor events checks, --blocked/--events flags, docs`
 
@@ -434,26 +434,26 @@ Five phases, each leaving the codebase green (`just check`):
 
 ## Final Verification
 
-- [ ] All 5 phases complete and committed.
-- [ ] All PRD must-have success criteria satisfied:
-  - [ ] `events.jsonl` co-located with `tasks.jsonl`, append-only in normal operation.
-  - [ ] Event schema v1 matches PRD (verified by roundtrip test).
-  - [ ] Single chokepoint enforced by `StatusChange` witness + regression test.
-  - [ ] Event-first ordering with fsync.
-  - [ ] `tg note <id> <text>` with 2048-byte cap, appends `note` event without status change.
-  - [ ] `tg events <id>` shows chronological log, `--json` emits NDJSON.
-  - [ ] Author resolution: `TG_AUTHOR` → git → "unknown".
-  - [ ] Concurrent appends safe under `O_APPEND` + `PIPE_BUF` (verified by concurrency test).
-  - [ ] Archive integration: events move on `tg done` / `tg archive` recovery.
-  - [ ] Default UX unchanged: `tg show` / `tg list` output identical without the new flags.
-- [ ] Should-have items:
-  - [ ] `tg show --events` works.
-  - [ ] `tg doctor` has the four new checks.
-  - [ ] `tg list --blocked` sugar works.
-  - [ ] README + CLAUDE.md updated.
-- [ ] `just check` passes cleanly on the final commit.
-- [ ] No regressions in existing tests.
-- [ ] Code reviewed.
+- [x] All 5 phases complete and committed.
+- [x] All PRD must-have success criteria satisfied:
+  - [x] `events.jsonl` co-located with `tasks.jsonl`, append-only in normal operation.
+  - [x] Event schema v1 matches PRD (verified by roundtrip test).
+  - [x] Single chokepoint enforced by `StatusChange` witness + regression test.
+  - [x] Event-first ordering with fsync.
+  - [x] `tg note <id> <text>` with 2048-byte cap, appends `note` event without status change.
+  - [x] `tg events <id>` shows chronological log, `--json` emits NDJSON.
+  - [x] Author resolution: `TG_AUTHOR` → git → "unknown".
+  - [x] Concurrent appends safe under `O_APPEND` + `PIPE_BUF` (verified by concurrency test).
+  - [x] Archive integration: events move on `tg done` / `tg archive` recovery.
+  - [x] Default UX unchanged: `tg show` / `tg list` output identical without the new flags.
+- [x] Should-have items:
+  - [x] `tg show --events` works.
+  - [x] `tg doctor` has the four new checks.
+  - [x] `tg list --blocked` sugar works.
+  - [x] README + CLAUDE.md updated.
+- [x] `just check` passes cleanly on the final commit.
+- [x] No regressions in existing tests.
+- [x] Code reviewed.
 
 ## Execution Log
 

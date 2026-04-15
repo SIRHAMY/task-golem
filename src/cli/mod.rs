@@ -31,8 +31,9 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             status,
             tag,
             parent,
-        } => commands::list::run(cli.json, cli.verbose, status, tag, parent),
-        Commands::Show { id } => commands::show::run(cli.json, id),
+            blocked,
+        } => commands::list::run(cli.json, cli.verbose, status, tag, parent, blocked),
+        Commands::Show { id, events } => commands::show::run(cli.json, id, events),
         Commands::Edit {
             id,
             title,

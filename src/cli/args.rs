@@ -67,12 +67,20 @@ pub enum Commands {
         /// Filter by parent ID (direct children only)
         #[arg(long)]
         parent: Option<String>,
+
+        /// Sugar for `--status blocked` (conflicts with --status)
+        #[arg(long)]
+        blocked: bool,
     },
 
     /// Show a single item
     Show {
         /// Item ID (full, bare hex, or prefix)
         id: String,
+
+        /// Include the chronological event log at the end of the detail view
+        #[arg(long)]
+        events: bool,
     },
 
     /// Edit an existing item

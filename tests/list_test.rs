@@ -134,6 +134,40 @@ fn list_parent_filter_empty_result() {
 }
 
 #[test]
+fn list_blocked_flag_matches_status_blocked() {
+    let proj = TestProject::new().unwrap();
+    let a = proj.run_tg_json(&["add", "Task A"]);
+    let aid = a["id"].as_str().unwrap().to_string();
+    let b = proj.run_tg_json(&["add", "Task B"]);
+    let bid = b["id"].as_str().unwrap().to_string();
+
+    proj.run_tg(&["block", &aid, "--reason", "stuck"]);
+
+    let flag = proj.run_tg_json(&["list", "--blocked"]);
+    let status = proj.run_tg_json(&["list", "--status", "blocked"]);
+
+    // Same set (may be ordered identically — list sort is stable on
+    // priority+created_at), assert JSON equality.
+    assert_eq!(flag, status);
+
+    let arr = flag.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["id"], aid);
+    // Sanity: unrelated non-blocked task not present.
+    assert!(arr.iter().all(|v| v["id"] != bid));
+}
+
+#[test]
+fn list_blocked_and_status_combined_errors() {
+    let proj = TestProject::new().unwrap();
+    let output = proj.run_tg(&["--json", "list", "--blocked", "--status", "todo"]);
+    assert!(
+        !output.status.success(),
+        "expected InvalidInput error, got success"
+    );
+}
+
+#[test]
 fn list_parent_filter_combined_with_status() {
     let proj = TestProject::new().unwrap();
     let p = proj.run_tg_json(&["add", "Parent"]);

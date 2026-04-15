@@ -11,6 +11,7 @@ pub fn run(
     status_filter: Option<String>,
     tag_filter: Option<String>,
     parent_filter: Option<String>,
+    blocked: bool,
 ) -> Result<(), TgError> {
     let project_dir = root::find_project_root_from_cwd()?;
     if verbose {
@@ -18,8 +19,19 @@ pub fn run(
     }
     let store = Store::new(project_dir);
 
-    // Parse status filter if provided
-    let parsed_status = if let Some(ref s) = status_filter {
+    // --blocked is sugar for --status blocked. Combining both is rejected so
+    // there's a single way to express the intent.
+    if blocked && status_filter.is_some() {
+        return Err(TgError::InvalidInput(
+            "--blocked cannot be combined with --status; --blocked is sugar for --status blocked"
+                .to_string(),
+        ));
+    }
+
+    // Parse status filter if provided (--blocked short-circuits to Blocked).
+    let parsed_status = if blocked {
+        Some(Status::Blocked)
+    } else if let Some(ref s) = status_filter {
         let status: Status = s.parse().map_err(TgError::InvalidInput)?;
         Some(status)
     } else {

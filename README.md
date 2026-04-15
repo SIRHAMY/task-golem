@@ -36,10 +36,28 @@ tg show tg-a1b2c
 |---------|-------------|
 | `init` | Create `.task-golem/` directory with empty store |
 | `add "<title>"` | Add a new item (generates a hex ID) |
-| `list` | Show all active items |
-| `show <ID>` | Show full details of an item |
+| `list` | Show all active items (add `--blocked` for blocked items) |
+| `show <ID>` | Show full details of an item (add `--events` for the event log) |
 | `ready` | Show items with `todo` status |
 | `archive` | Archive completed items |
+| `note <ID> "<text>"` | Append a free-text note to a task's event log |
+| `events <ID>` | Show the chronological event log for a task (`--json` emits NDJSON) |
+
+## Events
+
+Every status transition (`do`, `done`, `todo`, `block`, `unblock`) automatically appends a structured event to `.task-golem/events.jsonl`. Agents and humans can also append free-text notes:
+
+```bash
+tg note tg-a1b2c "tried approach X, hit verification ceiling on browser check"
+tg events tg-a1b2c           # human table view
+tg events tg-a1b2c --json    # NDJSON for downstream tools
+```
+
+Notes are intended as lightweight breadcrumbs for stalls, verification ceilings, and context-for-next-session handoffs. They are capped at 2048 bytes per event (including the trailing newline on disk).
+
+Author resolution order: `TG_AUTHOR` env var → `git config user.email` → `"unknown"`. Set `TG_AUTHOR` for agent runs to keep author tags stable across invocations.
+
+**Don't paste secrets into notes.** `events.jsonl` and `events.archive.jsonl` are part of the repo's durable state and travel with the project. Treat them like any other committed file.
 
 ## Storage
 
