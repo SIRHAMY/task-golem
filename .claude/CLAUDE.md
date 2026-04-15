@@ -26,7 +26,11 @@ A lightweight, agent-native work tracker. Project-scoped task management with ha
 
 - hit a verification ceiling ("can't reproduce locally; needs browser harness")
 - stall on an external dependency ("waiting on API key from ops")
-- want the next session to pick up context ("tried approach X, skipped Y because Z")
+- reach a progress checkpoint mid-task ("phase 1 landed in abc1234, phase 2 next") — covers session handoffs
+- leave a traceability pointer (commit, PR, or doc link with a one-liner)
+- surface a surprising discovery worth stitching into the task history
+
+Keep each note to one line where possible, prefer links over prose. Don't narrate every commit — status transitions and git log already tell that story.
 
 Notes on **archived** tasks are rejected — archive is read-only once reached. If a task needs a note but has been archived prematurely, use `tg unblock`/`tg todo` flow to move it back to active before noting, or append via another active task.
 
