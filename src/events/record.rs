@@ -21,6 +21,15 @@ pub enum EventType {
     Note,
 }
 
+impl std::fmt::Display for EventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EventType::StatusTransition => write!(f, "status_transition"),
+            EventType::Note => write!(f, "note"),
+        }
+    }
+}
+
 /// A single event record, one JSON line in `events.jsonl`.
 ///
 /// The `status` field is present only when `event_type == StatusTransition`.

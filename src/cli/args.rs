@@ -232,6 +232,25 @@ pub enum Commands {
         timeout: u64,
     },
 
+    /// Append a free-text note event to a task
+    Note {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+
+        /// Note text (must be non-empty)
+        text: String,
+    },
+
+    /// Show the chronological event log for a task
+    Events {
+        /// Item ID (full, bare hex, or prefix)
+        id: String,
+
+        /// Emit results as NDJSON (one event per line)
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Generate shell completion scripts
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, elvish, powershell)

@@ -1,9 +1,11 @@
+use std::borrow::Cow;
 use std::io::{self, Write};
 
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
 use serde::Serialize;
 
+use task_golem::events::Event;
 use task_golem::model::item::Item;
 use task_golem::model::status::Status;
 
@@ -171,5 +173,146 @@ pub fn print_children_section(children: &[Item]) {
 
     if children.len() > MAX_VISIBLE {
         writeln!(handle, "  ({} more)", children.len() - MAX_VISIBLE).ok();
+    }
+}
+
+/// Strip C0 (0x00–0x1F except `\t`) and C1 (0x80–0x9F) control bytes from a
+/// string when `is_tty` is true. When `is_tty` is false (piped/redirected
+/// output), the input is returned unchanged so downstream tools (jq, grep,
+/// less) see the on-disk bytes verbatim.
+///
+/// `is_tty` is taken as a parameter rather than detected internally so tests
+/// can exercise both branches without process-level isolation.
+///
+/// `\n` cannot occur in a JSONL value (it would tear the line on read), so it
+/// does not need a special carve-out beyond the C0 strip semantics.
+pub fn sanitize_for_tty(input: &str, is_tty: bool) -> Cow<'_, str> {
+    if !is_tty {
+        return Cow::Borrowed(input);
+    }
+    // Fast path: scan for any byte that needs stripping. The vast majority of
+    // notes contain only printable ASCII or UTF-8 multibyte sequences (whose
+    // continuation bytes are all >= 0x80 but in the 0x80..=0xBF range — the
+    // C1 strip would mangle them). To preserve UTF-8 correctness, iterate over
+    // chars and strip by codepoint, not byte.
+    let needs_strip = input.chars().any(is_control_to_strip);
+    if !needs_strip {
+        return Cow::Borrowed(input);
+    }
+    let cleaned: String = input.chars().filter(|c| !is_control_to_strip(*c)).collect();
+    Cow::Owned(cleaned)
+}
+
+fn is_control_to_strip(c: char) -> bool {
+    let cp = c as u32;
+    // C0: 0x00–0x1F except 0x09 (\t).
+    if cp <= 0x1F && cp != 0x09 {
+        return true;
+    }
+    // 0x7F DEL — stripping is conventional for terminal-safe rendering.
+    if cp == 0x7F {
+        return true;
+    }
+    // C1: 0x80–0x9F.
+    if (0x80..=0x9F).contains(&cp) {
+        return true;
+    }
+    false
+}
+
+/// Render a chronological event log to stdout in fixed-column human format.
+///
+/// Shared between `tg events` and (in Phase 5) `tg show --events`. When
+/// `is_tty` is true, text fields are sanitized via [`sanitize_for_tty`] to
+/// neutralize embedded escape sequences. Empty event slices print nothing
+/// (no header, no rows) — callers should branch on emptiness if they want a
+/// "no events" message.
+pub fn print_events_human(events: &[Event], is_tty: bool) {
+    if events.is_empty() {
+        return;
+    }
+    let stdout = io::stdout();
+    let mut handle = stdout.lock();
+    writeln!(
+        handle,
+        "{:<27}  {:<24}  {:<17}  {:<7}  TEXT",
+        "TIMESTAMP", "AUTHOR", "TYPE", "STATUS"
+    )
+    .ok();
+    for event in events {
+        let ts = event.ts.format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string();
+        let author = sanitize_for_tty(&event.author, is_tty);
+        let type_str = event.event_type.to_string();
+        let status_str = event
+            .status
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let text = sanitize_for_tty(&event.text, is_tty);
+        writeln!(
+            handle,
+            "{:<27}  {:<24}  {:<17}  {:<7}  {}",
+            ts, author, type_str, status_str, text,
+        )
+        .ok();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_passthrough_when_not_tty() {
+        let input = "hello\x1b[31mworld";
+        let out = sanitize_for_tty(input, false);
+        assert_eq!(out.as_ref(), input);
+        // Cow::Borrowed branch — no allocation.
+        assert!(matches!(out, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn sanitize_strips_c0_when_tty() {
+        let input = "hello\x1b[31mworld";
+        let out = sanitize_for_tty(input, true);
+        assert_eq!(out.as_ref(), "hello[31mworld");
+    }
+
+    #[test]
+    fn sanitize_preserves_tab() {
+        let input = "a\tb";
+        let out = sanitize_for_tty(input, true);
+        assert_eq!(out.as_ref(), "a\tb");
+    }
+
+    #[test]
+    fn sanitize_strips_c1() {
+        // U+0085 (NEL) is in the C1 range.
+        let input = "a\u{0085}b";
+        let out = sanitize_for_tty(input, true);
+        assert_eq!(out.as_ref(), "ab");
+    }
+
+    #[test]
+    fn sanitize_strips_del() {
+        let input = "a\x7fb";
+        let out = sanitize_for_tty(input, true);
+        assert_eq!(out.as_ref(), "ab");
+    }
+
+    #[test]
+    fn sanitize_preserves_plain_ascii() {
+        let input = "hello world";
+        let out = sanitize_for_tty(input, true);
+        assert_eq!(out.as_ref(), input);
+        // No alloc when nothing to strip.
+        assert!(matches!(out, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn sanitize_preserves_unicode() {
+        // Multi-byte chars whose codepoints are > 0x9F must pass through.
+        let input = "café 日本語 🦀";
+        let out = sanitize_for_tty(input, true);
+        assert_eq!(out.as_ref(), input);
     }
 }

@@ -302,7 +302,7 @@ Five phases, each leaving the codebase green (`just check`):
 
 > User-facing surfaces. Add `tg note <id> <text>` and `tg events <id> [--json]`; wire args, dispatch, and rendering with TTY C0/C1 sanitization.
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Med
 
@@ -328,23 +328,23 @@ Five phases, each leaving the codebase green (`just check`):
 
 **Tasks:**
 
-- [ ] Implement `sanitize_for_tty` + unit tests (C0 stripped, C1 stripped, `\t` preserved, plain ASCII unchanged, Unicode preserved).
-- [ ] Implement `cli/commands/note.rs`.
-- [ ] Implement `cli/commands/events.rs` (including active ∪ archive scan and merge-sort).
-- [ ] Add args variants with clap derives; wire `--json` on `Events`.
-- [ ] Add dispatch arms in `src/cli/mod.rs`.
-- [ ] Implement `print_events_human` with TTY detection.
-- [ ] Write integration tests in `events_cli_test.rs`.
-- [ ] Run `just check` → green.
+- [x] Implement `sanitize_for_tty` + unit tests (C0 stripped, C1 stripped, `\t` preserved, plain ASCII unchanged, Unicode preserved).
+- [x] Implement `cli/commands/note.rs`.
+- [x] Implement `cli/commands/events.rs` (including active ∪ archive scan and merge-sort).
+- [x] Add args variants with clap derives; wire `--json` on `Events`.
+- [x] Add dispatch arms in `src/cli/mod.rs`.
+- [x] Implement `print_events_human` with TTY detection.
+- [x] Write integration tests in `events_cli_test.rs`.
+- [x] Run `just check` → green.
 
 **Verification:**
 
-- [ ] `cargo test` passes including new integration tests.
-- [ ] `just check` green.
-- [ ] Manual smoke: `tg add "x"` → `tg note <id> "tried approach"` → `tg do <id>` → `tg events <id>` shows both events in order, with the `do` transition second.
-- [ ] Manual smoke: `tg events <id> --json | jq .` produces valid JSON.
-- [ ] Manual smoke: inject a C0 byte (`tg note <id> $'\x1b[31mred'`) and confirm `tg events <id>` does NOT produce colored output; `tg events <id> --json` preserves the raw byte.
-- [ ] Code review passes.
+- [x] `cargo test` passes including new integration tests.
+- [x] `just check` green.
+- [x] Manual smoke: `tg add "x"` → `tg note <id> "tried approach"` → `tg do <id>` → `tg events <id>` shows both events in order, with the `do` transition second.
+- [x] Manual smoke: `tg events <id> --json | jq .` produces valid JSON.
+- [x] Manual smoke: inject a C0 byte (`tg note <id> $'\x1b[31mred'`) and confirm `tg events <id>` does NOT produce colored output (verified via output.rs unit tests covering the is_tty=true branch — `script` was unavailable for an end-to-end TTY smoke, but the helper is the chokepoint and is fully unit-tested); `tg events <id> --json` preserves the raw byte (verified end-to-end).
+- [x] Code review passes.
 
 **Commit:** `[TG-008][P4] Feature: Add tg note and tg events CLI commands`
 
