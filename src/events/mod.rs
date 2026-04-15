@@ -18,6 +18,7 @@
 //! silently. Malformed lines warn-once-to-stderr and are skipped.
 
 pub mod append;
+pub mod archive;
 pub mod author;
 pub mod read;
 pub mod record;

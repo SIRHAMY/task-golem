@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::errors::TgError;
 use crate::events::record::Event;
 use crate::events::witness::StatusChange;
-use crate::events::{append as events_append, author as events_author};
+use crate::events::{append as events_append, archive as events_archive, author as events_author};
 use crate::model::item::Item;
 
 /// Gitignore lines that keep the SQLite cache out of git.
@@ -181,12 +181,15 @@ impl Store {
         let author = events_author::resolve();
         let event = Event::status_transition(task_id, author, new_status, text);
         events_append::write(&self.events_path(), &event)?;
-        // TODO(Phase 3): call events::archive::move_for_task to move this
-        // task's events from events.jsonl to events.archive.jsonl under the
-        // same lock. For now the transition event lands in events.jsonl and
-        // stays there until Phase 3 wires the archive move.
         self.append_to_archive(done_item)?;
         jsonl::write_atomic(&self.tasks_path(), items)?;
+        // Move every event for this task from events.jsonl to
+        // events.archive.jsonl. Runs last so the task mutation is durable
+        // before we touch the events files again; a crash after tasks.jsonl
+        // rewrites but before the move completes leaves events stranded in
+        // active — surfaced by the Phase 5 `events_in_active_for_archived_task`
+        // doctor check.
+        events_archive::move_for_task(&self.events_path(), &self.events_archive_path(), task_id)?;
         Ok(())
     }
 

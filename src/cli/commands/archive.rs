@@ -10,14 +10,16 @@
 //! pre-TG-008 tasks: the drift check in `tg doctor` is the surfacing
 //! mechanism for task/event mismatches.
 //!
-//! Phase 3 of TG-008 adds `events::archive::move_for_task`, which the
-//! recovery sweep will call to migrate any existing events for recovered
-//! tasks from `events.jsonl` to `events.archive.jsonl`. Until then, events
-//! for recovered tasks remain in `events.jsonl`.
+//! The recovery sweep DOES call [`task_golem::events::archive::move_for_task`]
+//! after each promotion so any pre-existing events for the recovered task
+//! follow it into `events.archive.jsonl`. The move is best-effort: it runs
+//! under the same `with_lock` closure as the item promotion, and a failure
+//! is reported as an I/O error rather than silently swallowed.
 use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::cli::output;
 use task_golem::errors::TgError;
+use task_golem::events::archive as events_archive;
 use task_golem::model::item::Item;
 use task_golem::model::status::Status;
 use task_golem::store::Store;
@@ -92,6 +94,15 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
                 .expect("candidate collected from the same slice");
             let done_item = active_items.remove(idx);
             store.append_to_archive(&done_item)?;
+            // Follow the task's events into events.archive.jsonl. No events
+            // are *emitted* here (the status didn't change — it was already
+            // Done); existing events from prior transitions or notes move
+            // alongside their task.
+            events_archive::move_for_task(
+                &store.events_path(),
+                &store.events_archive_path(),
+                &done_item.id,
+            )?;
             recovered.push(done_item);
         }
 
