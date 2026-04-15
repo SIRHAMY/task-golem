@@ -113,7 +113,7 @@ Five phases, each leaving the codebase green (`just check`):
 
 > Ship the library primitives: `Event` record, single-syscall append, lenient reader, author resolution.
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Low-Med
 
@@ -140,23 +140,23 @@ Five phases, each leaving the codebase green (`just check`):
 
 **Tasks:**
 
-- [ ] Scaffold `src/events/mod.rs` + register in `src/lib.rs`. Add `#![deny(unused_must_use)]` to `src/lib.rs`.
-- [ ] Implement `Event` + `EventType` with serde derives; `#[serde(rename = "type")]` on the `event_type` field; `#[serde(skip_serializing_if = "Option::is_none")]` on `status`. Use a custom serializer for `ts` to pin 6-digit microsecond precision.
-- [ ] Implement `Event::status_transition(task_id, author, status, text)` + `Event::note(task_id, author, text)` constructors (author injected so tests stay deterministic). Stamp `ts: Utc::now()` and `v: 1`.
-- [ ] Implement `events::append::write` + internal `write_with_writer<W: Write>` seam. Add a doc-comment explaining the `PIPE_BUF` assumption and why `BufWriter`/`write_all`/`writeln!` are forbidden on the append path.
-- [ ] Implement `events::read::for_task` + `events::read::all` with lenient parsing, prelude-first version check, stderr warn-once per file.
-- [ ] Implement `events::author::resolve` + `resolve_with(env, git)` + `EnvReader` / `GitProbe` traits + real impls. Use a documented 2s timeout constant (`DEFAULT_GIT_TIMEOUT: Duration = Duration::from_secs(2)`).
-- [ ] Write unit tests for each module (see Files). Include boundary tests on the 2048-byte cap and microsecond-precision regex roundtrip.
-- [ ] Run `just check` → green.
+- [x] Scaffold `src/events/mod.rs` + register in `src/lib.rs`. Add `#![deny(unused_must_use)]` to `src/lib.rs`.
+- [x] Implement `Event` + `EventType` with serde derives; `#[serde(rename = "type")]` on the `event_type` field; `#[serde(skip_serializing_if = "Option::is_none")]` on `status`. Use a custom serializer for `ts` to pin 6-digit microsecond precision.
+- [x] Implement `Event::status_transition(task_id, author, status, text)` + `Event::note(task_id, author, text)` constructors (author injected so tests stay deterministic). Stamp `ts: Utc::now()` and `v: 1`.
+- [x] Implement `events::append::write` + internal `write_with_writer<W: Write>` seam. Add a doc-comment explaining the `PIPE_BUF` assumption and why `BufWriter`/`write_all`/`writeln!` are forbidden on the append path.
+- [x] Implement `events::read::for_task` + `events::read::all` with lenient parsing, prelude-first version check, stderr warn-once per file.
+- [x] Implement `events::author::resolve` + `resolve_with(env, git)` + `EnvReader` / `GitProbe` traits + real impls. Use a documented 2s timeout constant (`DEFAULT_GIT_TIMEOUT: Duration = Duration::from_secs(2)`).
+- [x] Write unit tests for each module (see Files). Include boundary tests on the 2048-byte cap and microsecond-precision regex roundtrip.
+- [x] Run `just check` → green.
 
 **Verification:**
 
-- [ ] `cargo build` succeeds; new module compiles.
-- [ ] `cargo test` passes including all new unit tests.
-- [ ] `just check` green (format, lints, tests).
-- [ ] Grep confirms no `BufWriter`, `write_all`, or `writeln!` in `events::append`.
-- [ ] Grep confirms `events` module is not yet called from `src/cli/` or `src/store/`.
-- [ ] Code review passes (`/code-review` → fix issues → repeat until pass).
+- [x] `cargo build` succeeds; new module compiles.
+- [x] `cargo test` passes including all new unit tests.
+- [x] `just check` green (format, lints, tests).
+- [x] Grep confirms no `BufWriter`, `write_all`, or `writeln!` in `events::append`.
+- [x] Grep confirms `events` module is not yet called from `src/cli/` or `src/store/`.
+- [x] Code review passes (`/code-review` → fix issues → repeat until pass).
 
 **Commit:** `[TG-008][P1] Feature: Add events module (record, append, read, author)`
 
@@ -170,7 +170,8 @@ Five phases, each leaving the codebase green (`just check`):
 
 **Followups:**
 
-- None expected at this phase.
+- [ ] [Low] Real `git config user.email` integration test — current coverage uses a `GitProbe` fake; we do not exercise the real `probe_git_with_timeout` path end-to-end. Deferred because it would require shelling out to `git` (environment-dependent) or a more elaborate harness; low value vs. the unit tests over `resolve_with`.
+- [ ] [Low] `ts` microsecond-precision assertion uses a hand-rolled structural check rather than a true regex, because `regex` is not a direct dependency of `task-golem`. Revisit if `regex` is added for another reason; otherwise the hand-rolled check covers the same property.
 
 ---
 
