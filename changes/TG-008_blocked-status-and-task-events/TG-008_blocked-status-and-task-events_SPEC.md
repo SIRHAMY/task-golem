@@ -179,7 +179,7 @@ Five phases, each leaving the codebase green (`just check`):
 
 > Introduce the `#[must_use]` `StatusChange` witness returned by `Item::apply_*` and consumed by `Store::commit_*` methods; rewire all 5 transition runners; events are emitted on every status transition by end of phase.
 
-**Phase Status:** not_started
+**Phase Status:** complete
 
 **Complexity:** Med
 
@@ -203,25 +203,25 @@ Five phases, each leaving the codebase green (`just check`):
 
 **Tasks:**
 
-- [ ] Add `src/events/witness.rs` with `StatusChange` type and `#[must_use]` attr.
-- [ ] Update `Item::apply_do/done/todo/block/unblock` signatures to return `StatusChange`. Construct the witness at the end of each method with the correct `new_status` and `text` (`text = blocked_reason` for block, empty string for the rest).
-- [ ] Add `Store::events_path` and `Store::events_archive_path` accessors.
-- [ ] Implement `Store::commit_status_change`: resolve author, build `Event::status_transition`, call `events::append::write` (fsynced), then `jsonl::write_atomic(tasks.jsonl, items)`.
-- [ ] Implement `Store::commit_done`: resolve author, build `Event::status_transition(done)`, call `events::append::write`, call existing `append_to_archive(done_item)`, call `jsonl::write_atomic(tasks.jsonl, items)` (WITHOUT the done item — caller removed it). The events-move to `events.archive.jsonl` lands in Phase 3 (since `events::archive::move_for_task` doesn't exist yet — add a TODO + followup, see Notes below).
-- [ ] Implement `Store::append_note`: validate `task_id` exists in ACTIVE ONLY via lock-free `load_active` (archived tasks rejected — see Phase 4 CLI enforcement), build `Event::note`, call `events::append::write`. Return the constructed `Event` for CLI output.
-- [ ] Update all 5 transition runners (`run_do/done/todo/block/unblock`) to consume the witness and call `commit_status_change` / `commit_done`.
-- [ ] Update `item.rs` unit tests to use `change.consume_for_test()` on returned witnesses.
-- [ ] Explicitly do NOT write archive-path event tests in Phase 2 (the archive event-move contract lands in Phase 3; tests for it belong there to avoid rewriting assertions).
-- [ ] Run `just check` → green.
+- [x] Add `src/events/witness.rs` with `StatusChange` type and `#[must_use]` attr.
+- [x] Update `Item::apply_do/done/todo/block/unblock` signatures to return `StatusChange`. Construct the witness at the end of each method with the correct `new_status` and `text` (`text = blocked_reason` for block, empty string for the rest).
+- [x] Add `Store::events_path` and `Store::events_archive_path` accessors.
+- [x] Implement `Store::commit_status_change`: resolve author, build `Event::status_transition`, call `events::append::write` (fsynced), then `jsonl::write_atomic(tasks.jsonl, items)`.
+- [x] Implement `Store::commit_done`: resolve author, build `Event::status_transition(done)`, call `events::append::write`, call existing `append_to_archive(done_item)`, call `jsonl::write_atomic(tasks.jsonl, items)` (WITHOUT the done item — caller removed it). The events-move to `events.archive.jsonl` lands in Phase 3 (since `events::archive::move_for_task` doesn't exist yet — add a TODO + followup, see Notes below).
+- [x] Implement `Store::append_note`: validate `task_id` exists in ACTIVE ONLY via lock-free `load_active` (archived tasks rejected — see Phase 4 CLI enforcement), build `Event::note`, call `events::append::write`. Return the constructed `Event` for CLI output.
+- [x] Update all 5 transition runners (`run_do/done/todo/block/unblock`) to consume the witness and call `commit_status_change` / `commit_done`.
+- [x] Update `item.rs` unit tests to use `change.consume_for_test()` on returned witnesses.
+- [x] Explicitly do NOT write archive-path event tests in Phase 2 (the archive event-move contract lands in Phase 3; tests for it belong there to avoid rewriting assertions).
+- [x] Run `just check` → green.
 
 **Verification:**
 
-- [ ] `cargo build` succeeds; no `#[must_use]` warnings (which would indicate a dropped witness).
-- [ ] `cargo test` passes; existing `transition_test.rs` tests still pass (events are now emitted but those tests don't check events yet — Phase 3).
-- [ ] `just check` green.
-- [ ] Manual check: `tg do <id>` followed by `cat .task-golem/events.jsonl` shows a status_transition event.
-- [ ] Grep confirms `apply_*` methods are only called from `transition.rs` and `item.rs` tests.
-- [ ] Code review passes.
+- [x] `cargo build` succeeds; no `#[must_use]` warnings (which would indicate a dropped witness).
+- [x] `cargo test` passes; existing `transition_test.rs` tests still pass (events are now emitted but those tests don't check events yet — Phase 3).
+- [x] `just check` green.
+- [x] Manual check: `tg do <id>` followed by `cat .task-golem/events.jsonl` shows a status_transition event.
+- [x] Grep confirms `apply_*` methods are only called from `transition.rs` and `item.rs` tests.
+- [x] Code review passes.
 
 **Commit:** `[TG-008][P2] Feature: Introduce StatusChange witness and Store commit chokepoint`
 

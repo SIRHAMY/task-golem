@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use super::status::Status;
 use crate::errors::TgError;
+use crate::events::witness::StatusChange;
 
 /// All serialized field names of the `Item` struct.
 /// Used by `validate_extensions()` to detect collisions with `serde(flatten)` keys.
@@ -106,7 +107,11 @@ impl Item {
     }
 
     /// Transition to Doing, optionally setting claim fields.
-    pub fn apply_do(&mut self, claim: Option<String>) {
+    ///
+    /// Returns a [`StatusChange`] witness that MUST be redeemed via
+    /// [`crate::store::Store::commit_status_change`] so the transition is
+    /// recorded in `events.jsonl` before `tasks.jsonl` is rewritten.
+    pub fn apply_do(&mut self, claim: Option<String>) -> StatusChange {
         let now = Utc::now();
         self.status = Status::Doing;
         if let Some(agent) = claim {
@@ -114,44 +119,62 @@ impl Item {
             self.claimed_at = Some(now);
         }
         self.updated_at = now;
+        StatusChange::new(&self.id, Status::Doing, "")
     }
 
     /// Transition to Done, clearing claim fields.
-    pub fn apply_done(&mut self) {
+    ///
+    /// Returns a [`StatusChange`] witness that MUST be redeemed via
+    /// [`crate::store::Store::commit_done`].
+    pub fn apply_done(&mut self) -> StatusChange {
         self.status = Status::Done;
         self.claimed_by = None;
         self.claimed_at = None;
         self.updated_at = Utc::now();
+        StatusChange::new(&self.id, Status::Done, "")
     }
 
     /// Transition to Blocked, storing current status for later restoration.
-    pub fn apply_block(&mut self, reason: Option<String>) {
+    ///
+    /// Returns a [`StatusChange`] witness whose `text` captures the
+    /// blocking reason (empty string if none was provided). Must be
+    /// redeemed via [`crate::store::Store::commit_status_change`].
+    pub fn apply_block(&mut self, reason: Option<String>) -> StatusChange {
         let from_status = self.status;
         self.blocked_from_status = Some(from_status);
         self.status = Status::Blocked;
-        self.blocked_reason = reason;
+        self.blocked_reason = reason.clone();
         // Clear claims if transitioning from Doing
         if from_status == Status::Doing {
             self.claimed_by = None;
             self.claimed_at = None;
         }
         self.updated_at = Utc::now();
+        StatusChange::new(&self.id, Status::Blocked, reason.unwrap_or_default())
     }
 
     /// Restore status from blocked_from_status (default to Todo if missing).
-    pub fn apply_unblock(&mut self) {
+    ///
+    /// Returns a [`StatusChange`] witness with the restored status. Must be
+    /// redeemed via [`crate::store::Store::commit_status_change`].
+    pub fn apply_unblock(&mut self) -> StatusChange {
         self.status = self.blocked_from_status.unwrap_or(Status::Todo);
         self.blocked_reason = None;
         self.blocked_from_status = None;
         self.updated_at = Utc::now();
+        StatusChange::new(&self.id, self.status, "")
     }
 
     /// Transition back to Todo, clearing claim fields.
-    pub fn apply_todo(&mut self) {
+    ///
+    /// Returns a [`StatusChange`] witness that MUST be redeemed via
+    /// [`crate::store::Store::commit_status_change`].
+    pub fn apply_todo(&mut self) -> StatusChange {
         self.status = Status::Todo;
         self.claimed_by = None;
         self.claimed_at = None;
         self.updated_at = Utc::now();
+        StatusChange::new(&self.id, Status::Todo, "")
     }
 }
 
@@ -336,7 +359,7 @@ mod tests {
     fn apply_do_without_claim() {
         let mut item = make_test_item();
         let before = item.updated_at;
-        item.apply_do(None);
+        item.apply_do(None).consume_for_test();
         assert_eq!(item.status, Status::Doing);
         assert!(item.claimed_by.is_none());
         assert!(item.claimed_at.is_none());
@@ -346,7 +369,8 @@ mod tests {
     #[test]
     fn apply_do_with_claim() {
         let mut item = make_test_item();
-        item.apply_do(Some("agent-1".to_string()));
+        item.apply_do(Some("agent-1".to_string()))
+            .consume_for_test();
         assert_eq!(item.status, Status::Doing);
         assert_eq!(item.claimed_by.as_deref(), Some("agent-1"));
         assert!(item.claimed_at.is_some());
@@ -357,8 +381,9 @@ mod tests {
     #[test]
     fn apply_done_clears_claims() {
         let mut item = make_test_item();
-        item.apply_do(Some("agent-1".to_string()));
-        item.apply_done();
+        item.apply_do(Some("agent-1".to_string()))
+            .consume_for_test();
+        item.apply_done().consume_for_test();
         assert_eq!(item.status, Status::Done);
         assert!(item.claimed_by.is_none());
         assert!(item.claimed_at.is_none());
@@ -367,7 +392,8 @@ mod tests {
     #[test]
     fn apply_block_from_todo() {
         let mut item = make_test_item();
-        item.apply_block(Some("waiting".to_string()));
+        item.apply_block(Some("waiting".to_string()))
+            .consume_for_test();
         assert_eq!(item.status, Status::Blocked);
         assert_eq!(item.blocked_from_status, Some(Status::Todo));
         assert_eq!(item.blocked_reason.as_deref(), Some("waiting"));
@@ -378,10 +404,12 @@ mod tests {
     #[test]
     fn apply_block_from_doing_clears_claims() {
         let mut item = make_test_item();
-        item.apply_do(Some("agent-1".to_string()));
+        item.apply_do(Some("agent-1".to_string()))
+            .consume_for_test();
         assert!(item.claimed_by.is_some());
 
-        item.apply_block(Some("blocker".to_string()));
+        item.apply_block(Some("blocker".to_string()))
+            .consume_for_test();
         assert_eq!(item.status, Status::Blocked);
         assert_eq!(item.blocked_from_status, Some(Status::Doing));
         assert!(item.claimed_by.is_none());
@@ -391,11 +419,11 @@ mod tests {
     #[test]
     fn apply_unblock_restores_status() {
         let mut item = make_test_item();
-        item.apply_do(None);
-        item.apply_block(None);
+        item.apply_do(None).consume_for_test();
+        item.apply_block(None).consume_for_test();
         assert_eq!(item.blocked_from_status, Some(Status::Doing));
 
-        item.apply_unblock();
+        item.apply_unblock().consume_for_test();
         assert_eq!(item.status, Status::Doing);
         assert!(item.blocked_reason.is_none());
         assert!(item.blocked_from_status.is_none());
@@ -407,20 +435,42 @@ mod tests {
         item.status = Status::Blocked;
         item.blocked_from_status = None; // Simulate corrupted data
 
-        item.apply_unblock();
+        item.apply_unblock().consume_for_test();
         assert_eq!(item.status, Status::Todo);
     }
 
     #[test]
     fn apply_todo_clears_claims() {
         let mut item = make_test_item();
-        item.apply_do(Some("agent-1".to_string()));
+        item.apply_do(Some("agent-1".to_string()))
+            .consume_for_test();
         assert!(item.claimed_by.is_some());
 
-        item.apply_todo();
+        item.apply_todo().consume_for_test();
         assert_eq!(item.status, Status::Todo);
         assert!(item.claimed_by.is_none());
         assert!(item.claimed_at.is_none());
+    }
+
+    #[test]
+    fn apply_block_witness_carries_reason() {
+        let mut item = make_test_item();
+        let change = item.apply_block(Some("needs-review".to_string()));
+        let (id, status, text) = change.fields();
+        assert_eq!(id, item.id.as_str());
+        assert_eq!(status, Status::Blocked);
+        assert_eq!(text, "needs-review");
+        change.consume_for_test();
+    }
+
+    #[test]
+    fn apply_block_witness_empty_text_when_no_reason() {
+        let mut item = make_test_item();
+        let change = item.apply_block(None);
+        let (_, status, text) = change.fields();
+        assert_eq!(status, Status::Blocked);
+        assert_eq!(text, "");
+        change.consume_for_test();
     }
 
     // === validate_extensions tests ===

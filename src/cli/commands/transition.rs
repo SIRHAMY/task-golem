@@ -62,7 +62,9 @@ pub fn run_do(json_mode: bool, id_input: String, claim: Option<String>) -> Resul
                 {
                     return Err(TgError::AlreadyClaimed(existing_claim.clone()));
                 }
-                // Set or re-claim: update claim fields
+                // Set or re-claim: update claim fields. No status transition
+                // occurred (item is already Doing), so we do not emit an
+                // event — we reuse save_active directly here.
                 item.claimed_by = Some(new_claim.clone());
                 item.claimed_at = Some(chrono::Utc::now());
                 item.updated_at = chrono::Utc::now();
@@ -82,9 +84,9 @@ pub fn run_do(json_mode: bool, id_input: String, claim: Option<String>) -> Resul
             });
         }
 
-        item.apply_do(claim);
+        let change = item.apply_do(claim);
         let result = item.clone();
-        store.save_active(&items)?;
+        store.commit_status_change(&items, change)?;
         Ok(TransitionResult::Applied(Box::new(result)))
     })?;
 
@@ -119,15 +121,14 @@ pub fn run_done(json_mode: bool, id_input: String) -> Result<(), TgError> {
                 });
             }
 
-            items[idx].apply_done();
+            let change = items[idx].apply_done();
             let done_item = items[idx].clone();
 
-            // Archive-first write ordering: append to archive, then remove from active.
-            // Failure after archive append but before active rewrite = benign duplicate.
-            store.append_to_archive(&done_item)?;
-
+            // Event-first + archive-first write ordering (handled by
+            // Store::commit_done): fsync the status_transition event, then
+            // append to archive, then rewrite active WITHOUT the done item.
             items.remove(idx);
-            store.save_active(&items)?;
+            store.commit_done(&items, &done_item, change)?;
 
             Ok(TransitionResult::Applied(Box::new(done_item)))
         } else if archive_ids.contains(&resolved) {
@@ -182,9 +183,9 @@ pub fn run_todo(json_mode: bool, id_input: String) -> Result<(), TgError> {
             });
         }
 
-        item.apply_todo();
+        let change = item.apply_todo();
         let result = item.clone();
-        store.save_active(&items)?;
+        store.commit_status_change(&items, change)?;
         Ok(TransitionResult::Applied(Box::new(result)))
     })?;
 
@@ -232,9 +233,9 @@ pub fn run_block(json_mode: bool, id_input: String, reason: Option<String>) -> R
             });
         }
 
-        item.apply_block(reason);
+        let change = item.apply_block(reason);
         let result = item.clone();
-        store.save_active(&items)?;
+        store.commit_status_change(&items, change)?;
         Ok(TransitionResult::Applied(Box::new(result)))
     })?;
 
@@ -278,9 +279,9 @@ pub fn run_unblock(json_mode: bool, id_input: String) -> Result<(), TgError> {
             )));
         }
 
-        item.apply_unblock();
+        let change = item.apply_unblock();
         let result = item.clone();
-        store.save_active(&items)?;
+        store.commit_status_change(&items, change)?;
         Ok(result)
     })?;
 

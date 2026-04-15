@@ -155,11 +155,12 @@ fn item_apply_unblock_restores_status() {
         extensions: std::collections::BTreeMap::new(),
     };
 
-    item.apply_block(Some("blocked reason".to_string()));
+    item.apply_block(Some("blocked reason".to_string()))
+        .consume_for_test();
     assert_eq!(item.status, Status::Blocked);
     assert_eq!(item.blocked_from_status, Some(Status::Doing));
 
-    item.apply_unblock();
+    item.apply_unblock().consume_for_test();
     assert_eq!(item.status, Status::Doing);
     assert!(item.blocked_reason.is_none());
     assert!(item.blocked_from_status.is_none());

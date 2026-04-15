@@ -1,3 +1,19 @@
+//! Archive recovery and pruning command (`tg archive`).
+//!
+//! # Relationship to the TG-008 events log
+//!
+//! The recovery sweep moves already-`Done` active items to `archive.jsonl`.
+//! Because these items are ALREADY in the `Done` status, no status transition
+//! occurs during recovery — and so this path deliberately does NOT call
+//! [`task_golem::store::Store::commit_done`] and does NOT emit any
+//! `status_transition` events. It also does NOT back-fill events for
+//! pre-TG-008 tasks: the drift check in `tg doctor` is the surfacing
+//! mechanism for task/event mismatches.
+//!
+//! Phase 3 of TG-008 adds `events::archive::move_for_task`, which the
+//! recovery sweep will call to migrate any existing events for recovered
+//! tasks from `events.jsonl` to `events.archive.jsonl`. Until then, events
+//! for recovered tasks remain in `events.jsonl`.
 use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::cli::output;

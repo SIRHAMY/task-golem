@@ -21,5 +21,7 @@ pub mod append;
 pub mod author;
 pub mod read;
 pub mod record;
+pub mod witness;
 
 pub use record::{Event, EventType};
+pub use witness::StatusChange;

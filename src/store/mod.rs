@@ -7,6 +7,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::errors::TgError;
+use crate::events::record::Event;
+use crate::events::witness::StatusChange;
+use crate::events::{append as events_append, author as events_author};
 use crate::model::item::Item;
 
 /// Gitignore lines that keep the SQLite cache out of git.
@@ -56,6 +59,20 @@ impl Store {
 
     pub fn archive_path(&self) -> PathBuf {
         self.project_dir.join("archive.jsonl")
+    }
+
+    /// Path to the active event log (`events.jsonl`).
+    pub fn events_path(&self) -> PathBuf {
+        self.project_dir.join("events.jsonl")
+    }
+
+    /// Path to the archived event log (`events.archive.jsonl`).
+    ///
+    /// Populated by `events::archive::move_for_task` in Phase 3; the
+    /// accessor is introduced now so `Store::commit_done` and the Phase 3
+    /// archive move share the same path contract.
+    pub fn events_archive_path(&self) -> PathBuf {
+        self.project_dir.join("events.archive.jsonl")
     }
 
     pub fn lock_path(&self) -> PathBuf {
@@ -114,6 +131,85 @@ impl Store {
     /// Append a single item to the archive file.
     pub fn append_to_archive(&self, item: &Item) -> Result<(), TgError> {
         jsonl::append_to_archive(&self.archive_path(), item)
+    }
+
+    /// Redeem a [`StatusChange`] witness for a non-terminal transition.
+    ///
+    /// Ordering: append the event to `events.jsonl` (fsynced) first, **then**
+    /// rewrite `tasks.jsonl`. A crash between the two steps leaves a
+    /// committed event with no task mutation — surfaced by the doctor drift
+    /// check in Phase 5. The reverse (task mutation without event) would be
+    /// invisible and is therefore forbidden by construction (the witness is
+    /// consumed here, so callers cannot skip the event).
+    ///
+    /// # Locking
+    ///
+    /// Must be called from inside a [`Store::with_lock`] closure. The lock
+    /// contract is documented rather than type-enforced (enforcing it would
+    /// require redesigning the lock API, which is out of scope).
+    pub fn commit_status_change(
+        &self,
+        items: &[Item],
+        change: StatusChange,
+    ) -> Result<(), TgError> {
+        let (task_id, new_status, text) = change.fields();
+        let author = events_author::resolve();
+        let event = Event::status_transition(task_id, author, new_status, text);
+        events_append::write(&self.events_path(), &event)?;
+        jsonl::write_atomic(&self.tasks_path(), items)?;
+        Ok(())
+    }
+
+    /// Redeem a [`StatusChange`] witness for a `done` transition that archives
+    /// the item.
+    ///
+    /// Ordering: append the `status_transition` event (fsynced), then append
+    /// the done item to `archive.jsonl` (fsynced), then rewrite
+    /// `tasks.jsonl` WITHOUT the done item. Caller must have already removed
+    /// the done item from `items`.
+    ///
+    /// # Locking
+    ///
+    /// Must be called from inside a [`Store::with_lock`] closure.
+    pub fn commit_done(
+        &self,
+        items: &[Item],
+        done_item: &Item,
+        change: StatusChange,
+    ) -> Result<(), TgError> {
+        let (task_id, new_status, text) = change.fields();
+        let author = events_author::resolve();
+        let event = Event::status_transition(task_id, author, new_status, text);
+        events_append::write(&self.events_path(), &event)?;
+        // TODO(Phase 3): call events::archive::move_for_task to move this
+        // task's events from events.jsonl to events.archive.jsonl under the
+        // same lock. For now the transition event lands in events.jsonl and
+        // stays there until Phase 3 wires the archive move.
+        self.append_to_archive(done_item)?;
+        jsonl::write_atomic(&self.tasks_path(), items)?;
+        Ok(())
+    }
+
+    /// Append a free-text note event for `task_id`.
+    ///
+    /// Validates that `task_id` exists in the ACTIVE store (archived tasks
+    /// are rejected; the CLI layer in Phase 4 surfaces the rejection with a
+    /// user-facing hint). Validation is lock-free — it relies on `O_APPEND`
+    /// atomicity for the write itself. A race where the task archives
+    /// between validate and append is acceptable: the resulting late note
+    /// becomes an `events_in_active_for_archived_task` condition caught by
+    /// the Phase 5 doctor check.
+    ///
+    /// Returns the `Event` that was appended (useful for CLI output).
+    pub fn append_note(&self, task_id: &str, text: &str) -> Result<Event, TgError> {
+        let items = self.load_active()?;
+        if !items.iter().any(|i| i.id == task_id) {
+            return Err(TgError::ItemNotFound(task_id.to_string()));
+        }
+        let author = events_author::resolve();
+        let event = Event::note(task_id, author, text);
+        events_append::write(&self.events_path(), &event)?;
+        Ok(event)
     }
 
     /// Ensure `.task-golem/.gitignore` exists and covers all cache-related artifacts.
