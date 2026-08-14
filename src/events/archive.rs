@@ -28,6 +28,7 @@
 //! correct behavior: the doctor check surfaces the drop, and the alternative
 //! (refusing the move on any corruption) would strand completed tasks.
 
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -65,13 +66,26 @@ pub fn move_for_task(
     archive_path: &Path,
     task_id: &str,
 ) -> Result<usize, TgError> {
+    move_for_tasks(active_path, archive_path, &HashSet::from([task_id]))
+}
+
+/// Move every event belonging to any `task_ids` member from active to archive.
+///
+/// Batch archival keeps a bottom-up container rollup linear in the number of
+/// events rather than re-reading and rewriting the event log per container.
+pub fn move_for_tasks(
+    active_path: &Path,
+    archive_path: &Path,
+    task_ids: &HashSet<&str>,
+) -> Result<usize, TgError> {
     // Step 1-2: read + partition. `events::read::all` returns events sorted
     // by `ts` ascending; we preserve that order when appending to archive,
     // which keeps the archive roughly chronological per task.
     let all = events_read::all(active_path)?;
 
-    let (moved, keep): (Vec<Event>, Vec<Event>) =
-        all.into_iter().partition(|e| e.task_id == task_id);
+    let (moved, keep): (Vec<Event>, Vec<Event>) = all
+        .into_iter()
+        .partition(|event| task_ids.contains(event.task_id.as_str()));
 
     if moved.is_empty() {
         return Ok(0);

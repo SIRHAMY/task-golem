@@ -79,6 +79,10 @@ impl Store {
         self.project_dir.join("tasks.lock")
     }
 
+    pub fn workflow_results_dir(&self) -> PathBuf {
+        self.project_dir.join("workflow-results")
+    }
+
     /// Acquire the file lock, execute a callback, release on drop.
     pub fn with_lock<F, R>(&self, callback: F) -> Result<R, TgError>
     where
@@ -195,6 +199,47 @@ impl Store {
         // active — surfaced by the Phase 5 `events_in_active_for_archived_task`
         // doctor check.
         events_archive::move_for_task(&self.events_path(), &self.events_archive_path(), task_id)?;
+        Ok(())
+    }
+
+    /// Redeem several done transitions while preserving the same active and
+    /// archived event-log ordering as [`Self::commit_done`].
+    ///
+    /// This is used only when a Campaign rolls up multiple eligible containers
+    /// from one fresh snapshot. The single active-store and event-log rewrites
+    /// avoid quadratic work for a deeply nested completed Campaign.
+    pub fn commit_done_batch(
+        &self,
+        items: &[Item],
+        done_items: &[Item],
+        changes: Vec<StatusChange>,
+    ) -> Result<(), TgError> {
+        if done_items.len() != changes.len() {
+            return Err(TgError::StorageCorruption(
+                "done items and status changes have different lengths".to_string(),
+            ));
+        }
+        let author = events_author::resolve();
+        for change in changes {
+            let (task_id, new_status, text) = change.fields();
+            events_append::write(
+                &self.events_path(),
+                &Event::status_transition(task_id, author.clone(), new_status, text),
+            )?;
+        }
+        for done_item in done_items {
+            self.append_to_archive(done_item)?;
+        }
+        jsonl::write_atomic(&self.tasks_path(), items)?;
+        let done_ids = done_items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<HashSet<_>>();
+        events_archive::move_for_tasks(
+            &self.events_path(),
+            &self.events_archive_path(),
+            &done_ids,
+        )?;
         Ok(())
     }
 
