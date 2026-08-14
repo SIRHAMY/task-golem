@@ -6,5 +6,6 @@ pub mod events;
 pub mod git;
 pub mod model;
 pub mod store;
+pub mod workflow;
 
 pub use model::id::generate_id_with_prefix;
