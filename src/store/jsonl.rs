@@ -124,6 +124,64 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
     Ok(items)
 }
 
+/// Read archive items fail-fast for operations that require a complete history.
+pub fn read_archive_strict(path: &Path) -> Result<Vec<Item>, TgError> {
+    if !path.exists() {
+        return Err(TgError::StorageCorruption(format!(
+            "Archive file '{}' is missing",
+            path.display()
+        )));
+    }
+
+    let file = fs::File::open(path).map_err(TgError::IoError)?;
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
+
+    let header_line = match lines.next() {
+        Some(Ok(line)) => line,
+        Some(Err(error)) => return Err(TgError::IoError(error)),
+        None => {
+            return Err(TgError::StorageCorruption(format!(
+                "Archive file '{}' is empty",
+                path.display()
+            )));
+        }
+    };
+    let header: SchemaHeader = serde_json::from_str(&header_line).map_err(|error| {
+        TgError::StorageCorruption(format!("Invalid archive schema header: {error}"))
+    })?;
+    if header.schema_version != CURRENT_SCHEMA_VERSION {
+        return Err(TgError::SchemaVersionUnsupported {
+            found: header.schema_version,
+            supported: CURRENT_SCHEMA_VERSION,
+        });
+    }
+
+    let mut items = Vec::new();
+    for (index, line_result) in lines.enumerate() {
+        let line = line_result.map_err(TgError::IoError)?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let item: Item = serde_json::from_str(&line).map_err(|error| {
+            TgError::StorageCorruption(format!(
+                "Malformed archive item on line {}: {error}",
+                index + 2
+            ))
+        })?;
+        item.validate_extensions().map_err(|error| match error {
+            TgError::StorageCorruption(message) => TgError::StorageCorruption(format!(
+                "Invalid archive extensions on line {}: {message}",
+                index + 2
+            )),
+            other => other,
+        })?;
+        items.push(item);
+    }
+
+    Ok(items)
+}
+
 /// Write items to a JSONL file atomically (tempfile → fsync → rename).
 /// Items are sorted by ID for deterministic output.
 pub fn write_atomic(path: &Path, items: &[Item]) -> Result<(), TgError> {

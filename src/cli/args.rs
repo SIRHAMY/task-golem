@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -259,10 +261,33 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Manage template-driven workflows
+    Workflow {
+        #[command(subcommand)]
+        action: WorkflowAction,
+    },
+
     /// Generate shell completion scripts
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, elvish, powershell)
         shell: clap_complete::Shell,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WorkflowAction {
+    /// Instantiate a validated workflow graph
+    Instantiate {
+        /// Repository-local workflow template path
+        template: PathBuf,
+
+        /// Idempotency key for this Campaign
+        #[arg(long)]
+        instance: String,
+
+        /// Supply a template input (repeatable, key=value)
+        #[arg(long = "input", num_args = 1)]
+        inputs: Vec<String>,
     },
 }
 

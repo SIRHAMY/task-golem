@@ -26,7 +26,8 @@ pub enum ContextMode {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WorkflowContext {
     pub mode: ContextMode,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,6 +60,7 @@ pub struct WorkflowDefinition {
     pub version: u32,
     pub name: String,
     pub template_path: PathBuf,
+    pub inputs: BTreeMap<String, String>,
     pub plugins: BTreeMap<String, PluginDefinition>,
     pub nodes: Vec<WorkflowNode>,
 }
@@ -143,7 +145,7 @@ pub fn load_workflow_definition(
     let workspace_root = fs::canonicalize(workspace_root).map_err(TgError::IoError)?;
     let template_path = canonical_definition_path(&workspace_root, template_path, "template")?;
     let template_source = fs::read_to_string(&template_path).map_err(TgError::IoError)?;
-    let resolved_source = substitute_inputs(&template_source, input_args)?;
+    let (resolved_source, inputs) = substitute_inputs(&template_source, input_args)?;
     let template: TemplateFile = serde_yaml::from_value(resolved_source)
         .map_err(|error| invalid(format!("invalid workflow template: {error}")))?;
 
@@ -155,6 +157,7 @@ pub fn load_workflow_definition(
         version: template.version,
         name: template.name,
         template_path,
+        inputs,
         plugins,
         nodes,
     })
@@ -217,7 +220,10 @@ fn canonical_definition_path(
     Ok(canonical)
 }
 
-fn substitute_inputs(source: &str, input_args: &[String]) -> Result<YamlValue, TgError> {
+fn substitute_inputs(
+    source: &str,
+    input_args: &[String],
+) -> Result<(YamlValue, BTreeMap<String, String>), TgError> {
     let mut yaml: YamlValue = serde_yaml::from_str(source)
         .map_err(|error| invalid(format!("invalid workflow template: {error}")))?;
     let inputs = parse_inputs(input_args)?;
@@ -249,7 +255,7 @@ fn substitute_inputs(source: &str, input_args: &[String]) -> Result<YamlValue, T
     }
 
     replace_input_references(&mut yaml, &inputs, SubstitutionLocation::Root)?;
-    Ok(yaml)
+    Ok((yaml, inputs))
 }
 
 fn parse_inputs(input_args: &[String]) -> Result<BTreeMap<String, String>, TgError> {

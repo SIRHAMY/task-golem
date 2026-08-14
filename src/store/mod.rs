@@ -117,6 +117,11 @@ impl Store {
         jsonl::read_archive(&self.archive_path())
     }
 
+    /// Full fail-fast archive deserialization for uniqueness-sensitive operations.
+    pub fn load_all_archive_strict(&self) -> Result<Vec<Item>, TgError> {
+        jsonl::read_archive_strict(&self.archive_path())
+    }
+
     /// Union of active IDs + archive IDs.
     pub fn all_known_ids(&self) -> Result<HashSet<String>, TgError> {
         let active = self.load_active()?;
