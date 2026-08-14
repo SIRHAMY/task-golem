@@ -289,6 +289,12 @@ pub enum WorkflowAction {
         #[arg(long = "input", num_args = 1)]
         inputs: Vec<String>,
     },
+
+    /// Select or resume one Task in a Campaign without invoking its plugin
+    Run {
+        /// Campaign root item ID
+        campaign_id: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
