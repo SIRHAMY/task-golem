@@ -55,6 +55,29 @@ where
     }
 }
 
+/// Execute a callback while holding an exclusive file lock without waiting.
+pub fn with_lock_nonblocking<F, R>(lock_path: &Path, callback: F) -> Result<R, TgError>
+where
+    F: FnOnce() -> Result<R, TgError>,
+{
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)
+        .map_err(TgError::IoError)?;
+    let mut lock = RwLock::new(file);
+    let _lock_guard = lock.try_write().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::WouldBlock {
+            TgError::LockUnavailable(lock_path.display().to_string())
+        } else {
+            TgError::IoError(error)
+        }
+    })?;
+    callback()
+}
+
 /// Calculate backoff delays for testing purposes (without jitter).
 #[cfg(test)]
 pub fn backoff_delays(count: usize) -> Vec<u64> {

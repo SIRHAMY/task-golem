@@ -53,6 +53,9 @@ pub enum TgError {
     #[error("Lock timeout after {0:?}")]
     LockTimeout(std::time::Duration),
 
+    #[error("Lock already held: {0}")]
+    LockUnavailable(String),
+
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
@@ -100,7 +103,8 @@ impl TgError {
             | TgError::ParentHasChildren { .. }
             | TgError::QueryTimeout { .. }
             | TgError::QueryDenied { .. }
-            | TgError::QuerySyntax { .. } => 1,
+            | TgError::QuerySyntax { .. }
+            | TgError::LockUnavailable(_) => 1,
 
             TgError::StorageCorruption(_)
             | TgError::LockTimeout(_)
