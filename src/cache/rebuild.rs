@@ -18,7 +18,7 @@ use std::process;
 
 use rusqlite::{Connection, params};
 
-use super::{DDL, Stamp, compute_stamp, write_meta};
+use super::{DDL, SourceStamp, compute_source_stamp, write_meta};
 use crate::errors::TgError;
 use crate::model::deps;
 use crate::model::item::Item;
@@ -30,11 +30,12 @@ use crate::store::Store;
 pub fn rebuild_to(store: &Store, cache_path: &Path) -> Result<(), TgError> {
     // Phase 1: lock-and-read. Keep the lock scope as tight as possible so concurrent
     // writes aren't starved by the cache rebuild.
-    let (items, stamp) = store.with_lock(|s| {
+    let (items, archive_items, stamp) = store.with_lock(|s| {
         let items = s.load_active()?;
+        let archive_items = s.load_all_archive()?;
         validate_for_rebuild(&items)?;
-        let stamp = compute_stamp(&s.tasks_jsonl_path())?;
-        Ok((items, stamp))
+        let stamp = compute_source_stamp(s)?;
+        Ok((items, archive_items, stamp))
     })?;
 
     // Phase 2: build the temp DB outside the lock.
@@ -46,7 +47,7 @@ pub fn rebuild_to(store: &Store, cache_path: &Path) -> Result<(), TgError> {
     let _ = fs::remove_file(&tmp_path);
 
     // Build; on any failure clean up the tmp file before returning.
-    let build_result = build_temp_db(&tmp_path, &items, &stamp);
+    let build_result = build_temp_db(&tmp_path, &items, &archive_items, &stamp);
     if build_result.is_err() {
         let _ = fs::remove_file(&tmp_path);
     }
@@ -65,17 +66,18 @@ pub fn rebuild_to(store: &Store, cache_path: &Path) -> Result<(), TgError> {
 
 /// Rebuild into an in-memory SQLite DB (used when `cache.db` path is unwritable).
 pub fn rebuild_in_memory(store: &Store) -> Result<Connection, TgError> {
-    let (items, stamp) = store.with_lock(|s| {
+    let (items, archive_items, stamp) = store.with_lock(|s| {
         let items = s.load_active()?;
+        let archive_items = s.load_all_archive()?;
         validate_for_rebuild(&items)?;
-        let stamp = compute_stamp(&s.tasks_jsonl_path())?;
-        Ok((items, stamp))
+        let stamp = compute_source_stamp(s)?;
+        Ok((items, archive_items, stamp))
     })?;
 
     let conn = Connection::open_in_memory().map_err(|e| TgError::CacheRebuildFailed {
         detail: e.to_string(),
     })?;
-    populate_connection(&conn, &items, &stamp)?;
+    populate_connection(&conn, &items, &archive_items, &stamp)?;
     Ok(conn)
 }
 
@@ -179,12 +181,17 @@ unsafe extern "C" {
 
 /// Build the full cache into a new file at `tmp_path`. Leaves `tmp_path` closed
 /// and fsync-ready on success; caller handles fsync + rename.
-fn build_temp_db(tmp_path: &PathBuf, items: &[Item], stamp: &Stamp) -> Result<(), TgError> {
+fn build_temp_db(
+    tmp_path: &PathBuf,
+    items: &[Item],
+    archive_items: &[Item],
+    stamp: &SourceStamp,
+) -> Result<(), TgError> {
     let conn = Connection::open(tmp_path).map_err(|e| TgError::CacheRebuildFailed {
         detail: format!("opening temp DB {}: {}", tmp_path.display(), e),
     })?;
 
-    populate_connection(&conn, items, stamp)?;
+    populate_connection(&conn, items, archive_items, stamp)?;
 
     // Explicitly close so the OS flushes file metadata before we rename.
     conn.close().map_err(|(_, e)| TgError::CacheRebuildFailed {
@@ -196,7 +203,12 @@ fn build_temp_db(tmp_path: &PathBuf, items: &[Item], stamp: &Stamp) -> Result<()
 
 /// Populate an open SQLite connection (file-backed or in-memory) with the full
 /// cache: schema + rows + materialized view + meta.
-fn populate_connection(conn: &Connection, items: &[Item], stamp: &Stamp) -> Result<(), TgError> {
+fn populate_connection(
+    conn: &Connection,
+    items: &[Item],
+    archive_items: &[Item],
+    stamp: &SourceStamp,
+) -> Result<(), TgError> {
     // Temp file or in-memory: durability pragmas don't apply (a crash discards
     // the temp; in-memory is ephemeral by definition).
     conn.execute_batch(
@@ -227,7 +239,7 @@ fn populate_connection(conn: &Connection, items: &[Item], stamp: &Stamp) -> Resu
         insert_tasks(conn, items)?;
         insert_tags(conn, items)?;
         insert_deps(conn, items)?;
-        populate_task_view(conn, items)?;
+        populate_task_view(conn, items, archive_items)?;
         write_meta(conn, stamp).map_err(|e| TgError::CacheRebuildFailed {
             detail: format!("writing meta: {}", e),
         })?;
@@ -323,7 +335,11 @@ fn insert_deps(conn: &Connection, items: &[Item]) -> Result<(), TgError> {
 /// depth computation clamps at 64 as defense-in-depth — cycles were already
 /// ruled out by `validate_for_rebuild`, but the clamp matches the `depth < 64`
 /// bound the SPEC requires for any recursive CTE over `tasks.parent`.
-fn populate_task_view(conn: &Connection, items: &[Item]) -> Result<(), TgError> {
+fn populate_task_view(
+    conn: &Connection,
+    items: &[Item],
+    archive_items: &[Item],
+) -> Result<(), TgError> {
     // Build parent map for depth computation in Rust (avoids a second SQL pass;
     // cycles were already ruled out by validate_for_rebuild, so this terminates).
     let by_id: HashMap<&str, &Item> = items.iter().map(|i| (i.id.as_str(), i)).collect();
@@ -359,15 +375,7 @@ fn populate_task_view(conn: &Connection, items: &[Item]) -> Result<(), TgError> 
         d
     }
 
-    // Compute ready/unmet using the active set. A dep is "met" if the target is
-    // present in the active set with status=done. Missing targets (dangling deps
-    // or archived targets) count as unmet — matching the existing ready-queue
-    // semantics.
-    let done_ids: HashSet<&str> = items
-        .iter()
-        .filter(|i| i.status == Status::Done)
-        .map(|i| i.id.as_str())
-        .collect();
+    let dependency_evaluation = deps::evaluate_dependencies(items, archive_items);
 
     let mut stmt = conn
         .prepare(
@@ -380,14 +388,10 @@ fn populate_task_view(conn: &Connection, items: &[Item]) -> Result<(), TgError> 
             detail: format!("prepare task_view: {}", e),
         })?;
 
-    for item in items {
+    for (item, readiness) in items.iter().zip(&dependency_evaluation.items) {
         let depth = depth_of(&item.id, &by_id, &mut depths);
-        let unmet = item
-            .dependencies
-            .iter()
-            .filter(|d| !done_ids.contains(d.as_str()))
-            .count() as i64;
-        let is_ready = (item.status == Status::Todo && unmet == 0) as i64;
+        let unmet = readiness.unmet_dependencies.len() as i64;
+        let is_ready = readiness.is_ready as i64;
 
         stmt.execute(params![
             item.id,

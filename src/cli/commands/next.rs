@@ -1,6 +1,5 @@
 use crate::cli::output;
 use task_golem::errors::TgError;
-use task_golem::model::deps;
 use task_golem::store::Store;
 use task_golem::store::root;
 
@@ -11,24 +10,19 @@ pub fn run(json_mode: bool, verbose: bool) -> Result<(), TgError> {
     }
     let store = Store::new(project_dir);
 
-    // Read-only operation: no lock needed
-    let active_items = store.load_active()?;
-    let archive_ids = store.load_archive_ids()?;
+    let evaluation = store.dependency_evaluation()?;
     if verbose {
         eprintln!(
-            "[verbose] Loaded {} active items, {} archive IDs",
-            active_items.len(),
-            archive_ids.len()
+            "[verbose] Evaluated dependency readiness for {} active items",
+            evaluation.items.len()
         );
     }
 
-    let (ready, warnings) = deps::compute_ready_queue(&active_items, &archive_ids);
-
-    for w in &warnings {
-        eprintln!("{}", w);
+    for issue in &evaluation.integrity_issues {
+        eprintln!("{}", issue.warning());
     }
 
-    let next_item = ready.into_iter().next();
+    let next_item = evaluation.ready_items.into_iter().next();
 
     if json_mode {
         output::print_json(&next_item);

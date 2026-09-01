@@ -134,11 +134,11 @@ pub enum Commands {
         /// Item ID (canonical UUIDv7)
         id: String,
 
-        /// Force remove even if other items depend on this one
+        /// Request force removal (active dependents are still rejected)
         #[arg(long)]
         force: bool,
 
-        /// Also remove this item's ID from all dependents' dep lists
+        /// Request dependency cleanup (remove active dependency edges explicitly first)
         #[arg(long = "clear-deps")]
         clear_deps: bool,
     },

@@ -31,6 +31,12 @@ pub enum TgError {
     #[error("Item {0} is depended on by: {1}")]
     DependentExists(String, String),
 
+    #[error("Item {item_id} depends on missing target {dependency_id}")]
+    DependencyMissing {
+        item_id: String,
+        dependency_id: String,
+    },
+
     #[error("Item {id} cannot be its own parent")]
     ParentSelfReference { id: String },
 
@@ -91,6 +97,7 @@ impl TgError {
             | TgError::InvalidInput(_)
             | TgError::NotInitialized(_)
             | TgError::DependentExists(_, _)
+            | TgError::DependencyMissing { .. }
             | TgError::ParentSelfReference { .. }
             | TgError::ParentCycle { .. }
             | TgError::ParentDangling { .. }
@@ -128,6 +135,7 @@ impl TgError {
             TgError::InvalidInput(_) => "invalid_input",
             TgError::NotInitialized(_) => "not_initialized",
             TgError::DependentExists(_, _) => "dependent_exists",
+            TgError::DependencyMissing { .. } => "dependency_missing",
             TgError::ParentSelfReference { .. } => "parent_self_reference",
             TgError::ParentCycle { .. } => "parent_cycle",
             TgError::ParentDangling { .. } => "parent_dangling",

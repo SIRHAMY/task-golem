@@ -37,7 +37,7 @@ struct Issue {
     severity: String,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    details: Option<String>,
+    details: Option<serde_json::Value>,
 }
 
 pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
@@ -71,7 +71,8 @@ pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
     // 6. Dangling deps
     let active_ids: HashSet<String> = active_items.iter().map(|i| i.id.clone()).collect();
     let archive_ids: HashSet<String> = archive_items.iter().map(|i| i.id.clone()).collect();
-    check_dangling_deps(&active_items, &active_ids, &archive_ids, &mut issues);
+    let dependency_evaluation = deps::evaluate_dependencies(&active_items, &archive_items);
+    check_dependency_integrity(&dependency_evaluation.integrity_issues, &mut issues);
 
     // 7. Parent cycles (active items, parent graph only).
     check_parent_cycles(&active_items, &mut issues);
@@ -156,7 +157,7 @@ pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
         let both_ids: HashSet<String> = issues
             .iter()
             .filter(|i| i.issue_type == "items_in_both")
-            .filter_map(|i| i.details.clone())
+            .filter_map(|i| i.details.as_ref()?.as_str().map(str::to_owned))
             .collect();
 
         let mut fixed_active: Vec<Item> = active_items
@@ -230,7 +231,7 @@ pub fn run(json_mode: bool, fix: bool) -> Result<(), TgError> {
         let archived_task_ids_to_move: HashSet<String> = issues
             .iter()
             .filter(|i| i.issue_type == "events_in_active_for_archived_task")
-            .filter_map(|i| i.details.clone())
+            .filter_map(|i| i.details.as_ref()?.as_str().map(str::to_owned))
             .collect();
         if !archived_task_ids_to_move.is_empty() {
             let events_count = store.with_lock(|store| {
@@ -441,7 +442,7 @@ fn check_duplicate_ids(active_items: &[Item], archive_items: &[Item], issues: &m
                         locations.len(),
                         locations[0]
                     ),
-                    details: Some(id.clone()),
+                    details: Some(id.clone().into()),
                 });
             }
             // Cross-file duplicates are caught by items_in_both check
@@ -461,7 +462,7 @@ fn check_items_in_both(active_items: &[Item], archive_items: &[Item], issues: &m
                 "Item '{}' exists in both tasks.jsonl and archive.jsonl (partial tg done failure)",
                 id
             ),
-            details: Some(id.clone()),
+            details: Some(id.clone().into()),
         });
     }
 }
@@ -520,26 +521,23 @@ fn check_dependency_cycles(active_items: &[Item], issues: &mut Vec<Issue>) {
     }
 }
 
-fn check_dangling_deps(
-    active_items: &[Item],
-    active_ids: &HashSet<String>,
-    archive_ids: &HashSet<String>,
+fn check_dependency_integrity(
+    integrity_issues: &[deps::DependencyIntegrityIssue],
     issues: &mut Vec<Issue>,
 ) {
-    for item in active_items {
-        for dep in &item.dependencies {
-            if !active_ids.contains(dep) && !archive_ids.contains(dep) {
-                issues.push(Issue {
-                    issue_type: "dangling_dep".to_string(),
-                    severity: "warning".to_string(),
-                    message: format!(
-                        "Item '{}' depends on '{}' which is not in active or archive",
-                        item.id, dep
-                    ),
-                    details: Some(dep.clone()),
-                });
-            }
-        }
+    for integrity_issue in integrity_issues {
+        issues.push(Issue {
+            issue_type: "dangling_dep".to_string(),
+            severity: "warning".to_string(),
+            message: format!(
+                "Item '{}' depends on '{}' which is not in active or archive",
+                integrity_issue.item_id, integrity_issue.dependency_id
+            ),
+            details: Some(
+                serde_json::to_value(integrity_issue)
+                    .expect("dependency integrity diagnostics are serializable"),
+            ),
+        });
     }
 }
 
@@ -550,7 +548,7 @@ fn check_parent_cycles(active_items: &[Item], issues: &mut Vec<Issue>) {
             issue_type: "parent_cycle".to_string(),
             severity: "error".to_string(),
             message: format!("Parent cycle detected: {}", cycle.join(" → ")),
-            details: Some(cycle.join(",")),
+            details: Some(cycle.join(",").into()),
         });
     }
 }
@@ -571,7 +569,7 @@ fn check_parent_dangling_active(
                     "Item '{}' has parent '{}' which is not an active task",
                     item.id, parent
                 ),
-                details: Some(parent.clone()),
+                details: Some(parent.clone().into()),
             });
         }
     }
@@ -595,7 +593,7 @@ fn check_parent_dangling_archive(
                     "Archived item '{}' has parent '{}' which is not in active or archive",
                     item.id, parent
                 ),
-                details: Some(parent.clone()),
+                details: Some(parent.clone().into()),
             });
         }
     }
@@ -831,7 +829,7 @@ fn check_events_malformed(path: &std::path::Path, file_name: &str, issues: &mut 
                     issue_type: "events_malformed".to_string(),
                     severity: "error".to_string(),
                     message: format!("{}:{}: read error: {}", file_name, line_num, e),
-                    details: Some(format!("{}:{}", file_name, line_num)),
+                    details: Some(format!("{}:{}", file_name, line_num).into()),
                 });
                 continue;
             }
@@ -848,7 +846,7 @@ fn check_events_malformed(path: &std::path::Path, file_name: &str, issues: &mut 
                     issue_type: "events_malformed".to_string(),
                     severity: "error".to_string(),
                     message: format!("{}:{}: invalid JSON: {}", file_name, line_num, e),
-                    details: Some(format!("{}:{}", file_name, line_num)),
+                    details: Some(format!("{}:{}", file_name, line_num).into()),
                 });
                 continue;
             }
@@ -863,7 +861,7 @@ fn check_events_malformed(path: &std::path::Path, file_name: &str, issues: &mut 
                 issue_type: "events_malformed".to_string(),
                 severity: "error".to_string(),
                 message: format!("{}:{}: malformed event: {}", file_name, line_num, e),
-                details: Some(format!("{}:{}", file_name, line_num)),
+                details: Some(format!("{}:{}", file_name, line_num).into()),
             });
         }
     }
@@ -903,7 +901,7 @@ fn check_events_drift(active_items: &[Item], active_events: &[Event], issues: &m
                     "Task '{}' status '{}' disagrees with most-recent status_transition event '{}' at {}",
                     item.id, item.status, expected_status, ts
                 ),
-                details: Some(item.id.clone()),
+                details: Some(item.id.clone().into()),
             });
         }
     }
@@ -935,7 +933,7 @@ fn check_events_orphan(
                 "Orphan events for task_id '{}' ({} event(s); task not in active, archive, or pruned)",
                 task_id, count
             ),
-            details: Some(task_id),
+            details: Some(task_id.into()),
         });
     }
 }
@@ -960,7 +958,7 @@ fn check_events_in_active_for_archived(
                 "{} event(s) in events.jsonl for archived task '{}' — will be moved on --fix",
                 count, task_id
             ),
-            details: Some(task_id),
+            details: Some(task_id.into()),
         });
     }
 }
@@ -989,7 +987,7 @@ fn check_events_dup_across_files(
                 "{} event(s) for task '{}' appear in both events.jsonl and events.archive.jsonl — will be removed from active on --fix",
                 count, task_id
             ),
-            details: Some(task_id),
+            details: Some(task_id.into()),
         });
     }
 }
@@ -1056,7 +1054,7 @@ fn check_gitignore_missing(store: &Store, issues: &mut Vec<Issue>) {
                 ".task-golem/.gitignore missing cache entries: {}",
                 missing_display.join(", ")
             ),
-            details: Some(missing_display.join(",")),
+            details: Some(missing_display.join(",").into()),
         });
     }
 }

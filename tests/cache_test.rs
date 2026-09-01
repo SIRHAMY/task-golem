@@ -263,6 +263,49 @@ fn task_view_is_ready_correct() {
 }
 
 #[test]
+fn task_view_rebuild_tracks_archived_completion_evidence() {
+    // Arrange
+    let project = common::TestProject::new().unwrap();
+    let store = store_of(&project);
+    let mut archived_target = make_item(ID_A, "archived target");
+    archived_target.status = Status::Done;
+    jsonl::write_atomic(
+        &store.archive_path(),
+        std::slice::from_ref(&archived_target),
+    )
+    .unwrap();
+    let mut dependent = make_item(ID_B, "dependent");
+    dependent.dependencies = vec![ID_A.to_string()];
+    write_items(&store, std::slice::from_ref(&dependent));
+
+    // Act
+    let initial = cache::open_or_rebuild(&store, false).unwrap();
+    let initially_ready: i64 = initial
+        .query_row(
+            "SELECT is_ready FROM task_view WHERE id = ?1",
+            params![ID_B],
+            |row| row.get(0),
+        )
+        .unwrap();
+    drop(initial);
+    archived_target.status = Status::Todo;
+    jsonl::write_atomic(&store.archive_path(), &[archived_target]).unwrap();
+    let rebuilt = cache::open_or_rebuild(&store, false).unwrap();
+    let (ready_after_evidence_removal, unmet_after_evidence_removal): (i64, i64) = rebuilt
+        .query_row(
+            "SELECT is_ready, unmet_dep_count FROM task_view WHERE id = ?1",
+            params![ID_B],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+
+    // Assert
+    assert_eq!(initially_ready, 1);
+    assert_eq!(ready_after_evidence_removal, 0);
+    assert_eq!(unmet_after_evidence_removal, 1);
+}
+
+#[test]
 fn cyclic_parent_aborts_rebuild() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
@@ -365,7 +408,11 @@ fn schema_version_mismatch_rebuilds() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(v, "1", "rebuild should restore current schema_version");
+    assert_eq!(
+        v,
+        cache::SCHEMA_VERSION.to_string(),
+        "rebuild should restore current schema_version"
+    );
 }
 
 #[test]

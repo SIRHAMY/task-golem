@@ -90,17 +90,42 @@ fn dep_rm_removes_dependency() {
 }
 
 #[test]
-fn dep_add_warns_on_nonexistent() {
+fn dep_add_rejects_nonexistent_without_mutation() {
     let project = TestProject::new().unwrap();
 
     let a = project.run_tg_json(&["add", "Task A"]);
     let a_id = a["id"].as_str().unwrap();
+    let missing_id = "018f2b1c-4d5e-7abc-b456-789abcdef012";
 
-    // Adding dep on nonexistent ID should warn but succeed
-    let output = project.run_tg(&["--json", "dep", "add", a_id, "tg-nonex"]);
-    // This should fail because the ID doesn't exist (ItemNotFound)
+    // Act
+    let output = project.run_tg(&["--json", "dep", "add", a_id, missing_id]);
+
+    // Assert
     assert!(
         !output.status.success(),
         "Expected failure on nonexistent dep target"
+    );
+    assert_eq!(
+        project.run_tg_json(&["show", a_id])["dependencies"],
+        serde_json::json!([])
+    );
+}
+
+#[test]
+fn add_rejects_missing_dependency_before_creation() {
+    let project = TestProject::new().unwrap();
+    let missing_id = "018f2b1c-4d5e-7abc-b456-789abcdef012";
+
+    // Act
+    let output = project.run_tg(&["--json", "add", "Dependent", "--dep", missing_id]);
+
+    // Assert
+    assert!(!output.status.success());
+    assert!(
+        project
+            .run_tg_json(&["list"])
+            .as_array()
+            .unwrap()
+            .is_empty()
     );
 }

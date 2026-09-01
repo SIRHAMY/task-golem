@@ -68,11 +68,7 @@ pub fn run(
         // Process dep additions
         for add_dep in &add_deps {
             let resolved_dep = id::resolve_id(add_dep, &active_ids, &archive_ids, true)?;
-            let warnings =
-                deps::validate_dep(&resolved_id, &resolved_dep, &active_id_set, &archive_ids)?;
-            for w in &warnings {
-                eprintln!("{}", w);
-            }
+            deps::validate_dep(&resolved_id, &resolved_dep, &active_id_set, &archive_ids)?;
 
             // Temporarily add the dep to check for cycles
             if !items[item_idx].dependencies.contains(&resolved_dep) {

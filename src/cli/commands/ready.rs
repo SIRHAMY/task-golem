@@ -20,22 +20,24 @@ pub fn run(
     }
     let store = Store::new(project_dir);
 
-    // Read-only operation: no lock needed
-    let active_items = store.load_active()?;
-    let archive_ids = store.load_archive_ids()?;
+    let (active_items, evaluation, archive_count) = store.with_lock(|store| {
+        let active_items = store.load_active()?;
+        let archive_items = store.load_all_archive()?;
+        let evaluation = deps::evaluate_dependencies(&active_items, &archive_items);
+        Ok((active_items, evaluation, archive_items.len()))
+    })?;
     if verbose {
         eprintln!(
             "[verbose] Loaded {} active items, {} archive IDs",
             active_items.len(),
-            archive_ids.len()
+            archive_count
         );
     }
 
-    let (mut ready, warnings) = deps::compute_ready_queue(&active_items, &archive_ids);
+    let mut ready = evaluation.ready_items;
 
-    // Emit warnings from ready queue computation
-    for w in &warnings {
-        eprintln!("{}", w);
+    for issue in &evaluation.integrity_issues {
+        eprintln!("{}", issue.warning());
     }
 
     // Include stale doing items if requested

@@ -11,6 +11,8 @@ use task_golem::{generate_id, resolve_id, validate_id};
 
 const ACTIVE_ID: &str = "018f2b1c-4d5e-7abc-8123-456789abcdef";
 const ARCHIVED_ID: &str = "018f2b1c-4d5e-7abc-9234-56789abcdef0";
+const DEPENDENT_ID: &str = "018f2b1c-4d5e-7abc-a345-6789abcdef01";
+const MISSING_ID: &str = "018f2b1c-4d5e-7abc-b456-789abcdef012";
 
 fn test_item(id: &str, status: Status) -> Item {
     let now = chrono::Utc::now();
@@ -146,6 +148,73 @@ fn public_archive_append_rejects_active_identity_without_writing() {
     // Assert
     assert!(matches!(result, Err(TgError::StorageCorruption(_))));
     assert!(store.load_archive_ids().unwrap().is_empty());
+}
+
+#[test]
+fn store_write_rejects_missing_dependency_without_mutation() {
+    // Arrange
+    let tmp = tempfile::tempdir().unwrap();
+    let project_dir = tmp.path().join(".task-golem");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    let store = Store::new(project_dir);
+    store.with_lock(|s| s.save_active(&[])).unwrap();
+    let mut dependent = test_item(DEPENDENT_ID, Status::Todo);
+    dependent.dependencies = vec![MISSING_ID.to_string()];
+
+    // Act
+    let result = store.with_lock(|s| s.save_active(&[dependent]));
+
+    // Assert
+    assert!(matches!(result, Err(TgError::DependencyMissing { .. })));
+    assert!(store.load_active().unwrap().is_empty());
+}
+
+#[test]
+fn store_write_rejects_removal_with_active_dependents() {
+    // Arrange
+    let tmp = tempfile::tempdir().unwrap();
+    let project_dir = tmp.path().join(".task-golem");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    let store = Store::new(project_dir);
+    let target = test_item(ACTIVE_ID, Status::Todo);
+    let mut dependent = test_item(DEPENDENT_ID, Status::Todo);
+    dependent.dependencies = vec![ACTIVE_ID.to_string()];
+    store
+        .with_lock(|s| s.save_active(&[target.clone(), dependent.clone()]))
+        .unwrap();
+    let mut proposed_dependent = dependent.clone();
+    proposed_dependent.dependencies.clear();
+
+    // Act
+    let result = store.with_lock(|s| s.save_active(std::slice::from_ref(&proposed_dependent)));
+
+    // Assert
+    assert!(matches!(result, Err(TgError::DependentExists(_, _))));
+    assert_eq!(store.load_active().unwrap(), vec![target, dependent]);
+}
+
+#[test]
+fn dependency_evaluation_is_available_through_store_api() {
+    // Arrange
+    let tmp = tempfile::tempdir().unwrap();
+    let project_dir = tmp.path().join(".task-golem");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    let store = Store::new(project_dir);
+    store
+        .append_to_archive(&test_item(ARCHIVED_ID, Status::Done))
+        .unwrap();
+    let mut dependent = test_item(DEPENDENT_ID, Status::Todo);
+    dependent.dependencies = vec![ARCHIVED_ID.to_string()];
+    store
+        .with_lock(|s| s.save_active(std::slice::from_ref(&dependent)))
+        .unwrap();
+
+    // Act
+    let evaluation = store.dependency_evaluation().unwrap();
+
+    // Assert
+    assert_eq!(evaluation.ready_items, vec![dependent]);
+    assert!(evaluation.integrity_issues.is_empty());
 }
 
 #[test]

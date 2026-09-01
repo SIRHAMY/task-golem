@@ -47,6 +47,27 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
     };
 
     let result = store.with_lock(|store| {
+        if let Some(cutoff) = before_date {
+            let active_items = store.load_active()?;
+            for archived_item in store
+                .load_all_archive()?
+                .into_iter()
+                .filter(|item| item.updated_at < cutoff)
+            {
+                let dependents =
+                    task_golem::model::deps::active_dependents(&active_items, &archived_item.id);
+                if !dependents.is_empty() {
+                    return Err(TgError::DependentExists(
+                        archived_item.id,
+                        format!(
+                            "{}. Remove those dependency edges first",
+                            dependents.join(", ")
+                        ),
+                    ));
+                }
+            }
+        }
+
         // Step 1: Recover unarchived done items from active store.
         //
         // A done candidate is SKIPPED if any non-done active item still has it

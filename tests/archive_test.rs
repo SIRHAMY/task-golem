@@ -112,6 +112,43 @@ fn archive_prune_before_date() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn archive_prune_rejects_target_with_active_dependents_before_mutation()
+-> Result<(), Box<dyn std::error::Error>> {
+    // Arrange
+    let project = TestProject::new()?;
+    let target = project.run_tg_json(&["add", "Completed prerequisite"]);
+    let target_id = target["id"].as_str().unwrap().to_string();
+    project.run_tg_json(&["add", "Dependent", "--dep", &target_id]);
+    project.run_tg_json(&["done", &target_id]);
+    let archive_path = project.project_dir().join("archive.jsonl");
+    let tasks_path = project.project_dir().join("tasks.jsonl");
+    let archive = fs::read_to_string(&archive_path)?;
+    let aged_archive = archive.replace(
+        archive
+            .lines()
+            .find(|line| line.contains(&target_id))
+            .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .and_then(|item| item["updated_at"].as_str().map(str::to_owned))
+            .unwrap()
+            .as_str(),
+        "2020-01-01T00:00:00Z",
+    );
+    fs::write(&archive_path, aged_archive)?;
+    let archive_before = fs::read_to_string(&archive_path)?;
+    let tasks_before = fs::read_to_string(&tasks_path)?;
+
+    // Act
+    let output = project.run_tg(&["--json", "archive", "--before", "2025-01-01"]);
+
+    // Assert
+    assert!(!output.status.success());
+    assert_eq!(fs::read_to_string(&archive_path)?, archive_before);
+    assert_eq!(fs::read_to_string(&tasks_path)?, tasks_before);
+    assert!(!project.project_dir().join("archive-pruned.jsonl").exists());
+    Ok(())
+}
+
+#[test]
 fn archive_json_output_schema() -> Result<(), Box<dyn std::error::Error>> {
     let project = TestProject::new()?;
 

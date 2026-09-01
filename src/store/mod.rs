@@ -10,6 +10,7 @@ use crate::errors::TgError;
 use crate::events::record::Event;
 use crate::events::witness::StatusChange;
 use crate::events::{append as events_append, archive as events_archive, author as events_author};
+use crate::model::deps::{self, DependencyEvaluation};
 use crate::model::id;
 use crate::model::item::Item;
 
@@ -117,6 +118,15 @@ impl Store {
     /// Full archive deserialization.
     pub fn load_all_archive(&self) -> Result<Vec<Item>, TgError> {
         jsonl::read_archive(&self.archive_path())
+    }
+
+    /// Evaluate dependency readiness and integrity from one lock-consistent snapshot.
+    pub fn dependency_evaluation(&self) -> Result<DependencyEvaluation, TgError> {
+        self.with_lock(|store| {
+            let active_items = store.load_active()?;
+            let archive_items = store.load_all_archive()?;
+            Ok(deps::evaluate_dependencies(&active_items, &archive_items))
+        })
     }
 
     /// Union of active IDs + archive IDs.
@@ -303,8 +313,24 @@ impl Store {
 
     fn validate_active_write(&self, items: &[Item]) -> Result<(), TgError> {
         let active_ids = jsonl::validate_item_ids(items)?;
+        let current_items = self.load_active()?;
         let archive_ids = self.load_archive_ids()?;
-        ensure_disjoint_ids(&active_ids, &archive_ids)
+        ensure_disjoint_ids(&active_ids, &archive_ids)?;
+
+        for removed_item in current_items
+            .iter()
+            .filter(|item| !active_ids.contains(&item.id) && !archive_ids.contains(&item.id))
+        {
+            let dependents = deps::active_dependents(&current_items, &removed_item.id);
+            if !dependents.is_empty() {
+                return Err(TgError::DependentExists(
+                    removed_item.id.clone(),
+                    dependents.join(", "),
+                ));
+            }
+        }
+
+        deps::validate_dependency_references(items, &archive_ids)
     }
 
     fn validate_archive_move(&self, active_items: &[Item], item: &Item) -> Result<(), TgError> {
@@ -314,12 +340,13 @@ impl Store {
             return Err(jsonl::duplicate_id_error(&item.id));
         }
 
-        let archive_ids = self.load_archive_ids()?;
+        let mut archive_ids = self.load_archive_ids()?;
         ensure_disjoint_ids(&active_ids, &archive_ids)?;
         if archive_ids.contains(&item.id) {
             return Err(jsonl::duplicate_id_error(&item.id));
         }
-        Ok(())
+        archive_ids.insert(item.id.clone());
+        deps::validate_dependency_references(active_items, &archive_ids)
     }
 }
 

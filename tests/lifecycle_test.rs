@@ -5,7 +5,7 @@ use common::TestProject;
 /// Full lifecycle verification test:
 /// tg init && tg add "Task A" && tg add "Task B" --dep <A-id> && tg list --json
 /// && tg show <B-id> --json && tg edit <A-id> --priority 5
-/// && tg rm <A-id> --force --clear-deps && tg show <B-id> --json
+/// && tg dep rm <B-id> <A-id> && tg rm <A-id> && tg show <B-id> --json
 /// (verify B's deps no longer contain A)
 #[test]
 fn full_crud_lifecycle() {
@@ -35,8 +35,9 @@ fn full_crud_lifecycle() {
     let edit_a = proj.run_tg_json(&["edit", &id_a, "--priority", "5"]);
     assert_eq!(edit_a["priority"], 5);
 
-    // Remove A with --force --clear-deps
-    let rm = proj.run_tg_json(&["rm", &id_a, "--force", "--clear-deps"]);
+    // Remove B's dependency edge before removing A.
+    proj.run_tg_json(&["dep", "rm", &id_b, &id_a]);
+    let rm = proj.run_tg_json(&["rm", &id_a]);
     assert_eq!(rm["removed"], id_a);
 
     // Show B — deps should no longer contain A

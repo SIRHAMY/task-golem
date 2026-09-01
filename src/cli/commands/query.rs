@@ -77,7 +77,7 @@ fn print_schema() -> Result<(), TgError> {
     let doc = format!(
         "# task-golem cache schema (v{version})\n\
          \n\
-         > The cache is lazily rebuilt from `tasks.jsonl`. v1 contains **active tasks only** — archived tasks are not queryable via `tg query`.\n\
+         > The cache is lazily rebuilt from `tasks.jsonl`. It contains **active tasks only** — archived tasks are not queryable via `tg query`.\n\
          > Bound any recursive CTE over `tasks.parent` with `WHERE depth < 64` to stay within the cache's materialized depth cap.\n\
          \n\
          ## DDL\n\

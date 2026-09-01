@@ -16,8 +16,8 @@ struct RmOutput {
 pub fn run(
     json_mode: bool,
     id_input: String,
-    force: bool,
-    clear_deps: bool,
+    _force: bool,
+    _clear_deps: bool,
 ) -> Result<(), TgError> {
     let project_dir = root::find_project_root_from_cwd()?;
     let store = Store::new(project_dir);
@@ -46,31 +46,16 @@ pub fn run(
         }
 
         // Check for dependents
-        let dependents: Vec<String> = items
-            .iter()
-            .filter(|i| i.id != resolved_id && i.dependencies.contains(&resolved_id))
-            .map(|i| i.id.clone())
-            .collect();
+        let dependents = task_golem::model::deps::active_dependents(&items, &resolved_id);
 
-        if !dependents.is_empty() && !force {
+        if !dependents.is_empty() {
             return Err(TgError::DependentExists(
                 resolved_id.clone(),
                 format!(
-                    "{}. Use --force to remove anyway, or --force --clear-deps to also remove this ID from dependents' dep lists",
+                    "{}. Remove those dependency edges first",
                     dependents.join(", ")
                 ),
             ));
-        }
-
-        let mut cleared_from = Vec::new();
-        if force && clear_deps && !dependents.is_empty() {
-            // Clear this ID from all dependents
-            for item in &mut items {
-                if item.dependencies.contains(&resolved_id) {
-                    item.dependencies.retain(|d| d != &resolved_id);
-                    cleared_from.push(item.id.clone());
-                }
-            }
         }
 
         // Remove the item
@@ -79,7 +64,7 @@ pub fn run(
 
         Ok(RmOutput {
             removed: resolved_id,
-            cleared_deps_from: cleared_from,
+            cleared_deps_from: Vec::new(),
         })
     })?;
 

@@ -61,10 +61,7 @@ pub fn run(
             if resolved_deps.contains(&resolved) {
                 continue; // skip duplicate deps
             }
-            let warnings = deps::validate_dep(&new_id, &resolved, &active_id_set, &archive_ids)?;
-            for warning in &warnings {
-                eprintln!("{}", warning);
-            }
+            deps::validate_dep(&new_id, &resolved, &active_id_set, &archive_ids)?;
             resolved_deps.push(resolved);
         }
 

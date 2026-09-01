@@ -29,41 +29,41 @@ fn rm_with_dependents_error() {
     assert!(!output.status.success());
     assert_eq!(output.status.code().unwrap(), 1);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("--force"));
+    assert!(stderr.contains("Remove those dependency edges first"));
 }
 
 #[test]
-fn rm_force_leaves_dangling_deps() {
+fn rm_force_cannot_leave_dangling_deps() {
     let proj = TestProject::new().unwrap();
     let json_a = proj.run_tg_json(&["add", "Task A"]);
     let id_a = json_a["id"].as_str().unwrap().to_string();
     let json_b = proj.run_tg_json(&["add", "Task B", "--dep", &id_a]);
     let id_b = json_b["id"].as_str().unwrap().to_string();
 
-    // Force remove A
-    let rm_json = proj.run_tg_json(&["rm", &id_a, "--force"]);
-    assert_eq!(rm_json["removed"], id_a);
+    // Act
+    let output = proj.run_tg(&["--json", "rm", &id_a, "--force"]);
 
-    // B still has A as a dependency (dangling)
+    // Assert
+    assert!(!output.status.success());
+    assert_eq!(proj.run_tg_json(&["show", &id_a])["id"], id_a);
     let show_b = proj.run_tg_json(&["show", &id_b]);
     assert_eq!(show_b["dependencies"], serde_json::json!([id_a]));
 }
 
 #[test]
-fn rm_force_clear_deps() {
+fn rm_succeeds_after_dependency_edge_is_removed() {
     let proj = TestProject::new().unwrap();
     let json_a = proj.run_tg_json(&["add", "Task A"]);
     let id_a = json_a["id"].as_str().unwrap().to_string();
     let json_b = proj.run_tg_json(&["add", "Task B", "--dep", &id_a]);
     let id_b = json_b["id"].as_str().unwrap().to_string();
 
-    // Force remove A with --clear-deps
-    let rm_json = proj.run_tg_json(&["rm", &id_a, "--force", "--clear-deps"]);
-    assert_eq!(rm_json["removed"], id_a);
-    let cleared = rm_json["cleared_deps_from"].as_array().unwrap();
-    assert!(cleared.contains(&serde_json::json!(id_b)));
+    // Act
+    proj.run_tg_json(&["dep", "rm", &id_b, &id_a]);
+    let rm_json = proj.run_tg_json(&["rm", &id_a]);
 
-    // B should no longer have A in deps
+    // Assert
+    assert_eq!(rm_json["removed"], id_a);
     let show_b = proj.run_tg_json(&["show", &id_b]);
     assert_eq!(show_b["dependencies"], serde_json::json!([]));
 }

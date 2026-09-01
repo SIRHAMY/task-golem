@@ -92,6 +92,9 @@ fn doctor_detects_dangling_dep() {
         id,
         issues
     );
+    assert_eq!(dangling[0]["details"]["item_id"], id);
+    assert_eq!(dangling[0]["details"]["dependency_id"], "tg-nonex");
+    assert_eq!(dangling[0]["details"]["kind"], "missing_target");
 }
 
 #[test]

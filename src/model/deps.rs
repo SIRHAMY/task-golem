@@ -1,8 +1,52 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::Serialize;
+
 use crate::errors::TgError;
 use crate::model::item::Item;
 use crate::model::status::Status;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyIntegrityKind {
+    MissingTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DependencyIntegrityIssue {
+    pub item_id: String,
+    pub dependency_id: String,
+    pub kind: DependencyIntegrityKind,
+}
+
+impl DependencyIntegrityIssue {
+    pub fn warning(&self) -> String {
+        format!(
+            "Warning: item {} has unmet dependency '{}' (not found in active or archive)",
+            self.item_id, self.dependency_id
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ItemReadiness {
+    pub item_id: String,
+    pub is_ready: bool,
+    pub unmet_dependencies: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DependencyEvaluation {
+    pub ready_items: Vec<Item>,
+    pub items: Vec<ItemReadiness>,
+    pub integrity_issues: Vec<DependencyIntegrityIssue>,
+}
+
+impl DependencyEvaluation {
+    pub fn readiness_for(&self, item_id: &str) -> Option<&ItemReadiness> {
+        self.items.iter().find(|item| item.item_id == item_id)
+    }
+}
 
 /// Check if adding `new_dep_id` as a dependency of `source_id` would create a cycle.
 /// Uses DFS from new_dep_id following dependency edges in active items only.
@@ -34,16 +78,15 @@ pub fn would_create_cycle(items: &[Item], source_id: &str, new_dep_id: &str) -> 
     false
 }
 
-/// Validate a dependency ID. Returns warnings for informational issues.
+/// Validate a dependency ID before mutation.
 /// - Rejects self-dependencies
-/// - Checks existence in active or archive
-/// - Warns on missing from both stores
+/// - Rejects targets missing from both active and archive
 pub fn validate_dep(
     source_id: &str,
     dep_id: &str,
     active_ids: &HashSet<String>,
     archive_ids: &HashSet<String>,
-) -> Result<Vec<String>, TgError> {
+) -> Result<(), TgError> {
     if source_id == dep_id {
         return Err(TgError::InvalidInput(format!(
             "Item cannot depend on itself: {}",
@@ -51,15 +94,41 @@ pub fn validate_dep(
         )));
     }
 
-    let mut warnings = Vec::new();
     if !active_ids.contains(dep_id) && !archive_ids.contains(dep_id) {
-        warnings.push(format!(
-            "Warning: dependency '{}' not found in active or archive",
-            dep_id
-        ));
+        return Err(TgError::DependencyMissing {
+            item_id: source_id.to_string(),
+            dependency_id: dep_id.to_string(),
+        });
     }
 
-    Ok(warnings)
+    Ok(())
+}
+
+pub fn active_dependents(items: &[Item], target_id: &str) -> Vec<String> {
+    items
+        .iter()
+        .filter(|item| item.id != target_id && item.dependencies.iter().any(|dep| dep == target_id))
+        .map(|item| item.id.clone())
+        .collect()
+}
+
+pub fn validate_dependency_references(
+    active_items: &[Item],
+    archive_ids: &HashSet<String>,
+) -> Result<(), TgError> {
+    let active_ids: HashSet<&str> = active_items.iter().map(|item| item.id.as_str()).collect();
+    for item in active_items {
+        for dependency_id in &item.dependencies {
+            if !active_ids.contains(dependency_id.as_str()) && !archive_ids.contains(dependency_id)
+            {
+                return Err(TgError::DependencyMissing {
+                    item_id: item.id.clone(),
+                    dependency_id: dependency_id.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Full-graph cycle detection via topological sort (Kahn's algorithm).
@@ -316,57 +385,78 @@ pub fn validate_parent(
     Ok(())
 }
 
-/// Compute the ready queue: active todo items whose dependencies are all met.
-/// A dependency is met if it exists in the done_set (active done items + all archived IDs).
-/// Dependencies on IDs absent from both active and archive are unmet.
-/// Returns (ready_items, warnings) where warnings describe unmet deps on non-existent IDs.
-/// Ready items are sorted by priority desc, then created_at asc.
-pub fn compute_ready_queue(
+/// Evaluate dependency readiness and integrity from both durable stores.
+/// Active `done` targets and archived `done` targets satisfy dependencies.
+pub fn evaluate_dependencies(
     active_items: &[Item],
-    archive_ids: &HashSet<String>,
-) -> (Vec<Item>, Vec<String>) {
-    // Build done set: active items with status Done + all archived IDs
-    let mut done_set: HashSet<&str> = archive_ids.iter().map(|s| s.as_str()).collect();
-    let active_ids: HashSet<&str> = active_items.iter().map(|i| i.id.as_str()).collect();
-
-    for item in active_items {
-        if item.status == Status::Done {
-            done_set.insert(&item.id);
-        }
-    }
-
-    let mut warnings = Vec::new();
-    let mut ready: Vec<Item> = active_items
+    archive_items: &[Item],
+) -> DependencyEvaluation {
+    let active_by_id: HashMap<&str, Status> = active_items
         .iter()
-        .filter(|item| {
-            if item.status != Status::Todo {
-                return false;
-            }
-            for dep in &item.dependencies {
-                if !done_set.contains(dep.as_str()) {
-                    // Dep is not done. Check if it even exists.
-                    if !active_ids.contains(dep.as_str()) && !archive_ids.contains(dep.as_str()) {
-                        warnings.push(format!(
-                            "Warning: item {} has unmet dependency '{}' (not found in active or archive)",
-                            item.id, dep
-                        ));
-                    }
-                    return false;
-                }
-            }
-            true
-        })
-        .cloned()
+        .map(|item| (item.id.as_str(), item.status))
+        .collect();
+    let archive_by_id: HashMap<&str, Status> = archive_items
+        .iter()
+        .map(|item| (item.id.as_str(), item.status))
         .collect();
 
-    // Sort by priority desc, then created_at asc
-    ready.sort_by(|a, b| {
+    let mut integrity_issues = Vec::new();
+    let items = active_items
+        .iter()
+        .map(|item| {
+            let unmet_dependencies = item
+                .dependencies
+                .iter()
+                .filter(
+                    |dependency_id| match active_by_id.get(dependency_id.as_str()) {
+                        Some(Status::Done) => false,
+                        Some(_) => true,
+                        None => match archive_by_id.get(dependency_id.as_str()) {
+                            Some(Status::Done) => false,
+                            Some(_) => true,
+                            None => {
+                                integrity_issues.push(DependencyIntegrityIssue {
+                                    item_id: item.id.clone(),
+                                    dependency_id: (*dependency_id).clone(),
+                                    kind: DependencyIntegrityKind::MissingTarget,
+                                });
+                                true
+                            }
+                        },
+                    },
+                )
+                .cloned()
+                .collect::<Vec<_>>();
+
+            ItemReadiness {
+                item_id: item.id.clone(),
+                is_ready: item.status == Status::Todo && unmet_dependencies.is_empty(),
+                unmet_dependencies,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let ready_ids: HashSet<&str> = items
+        .iter()
+        .filter(|item| item.is_ready)
+        .map(|item| item.item_id.as_str())
+        .collect();
+    let mut ready_items = active_items
+        .iter()
+        .filter(|item| ready_ids.contains(item.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    ready_items.sort_by(|a, b| {
         b.priority
             .cmp(&a.priority)
             .then_with(|| a.created_at.cmp(&b.created_at))
     });
 
-    (ready, warnings)
+    DependencyEvaluation {
+        ready_items,
+        items,
+        integrity_issues,
+    }
 }
 
 #[cfg(test)]
@@ -446,17 +536,57 @@ mod tests {
     fn dep_on_archived_item_no_warning() {
         let active_ids: HashSet<String> = ["tg-aaa00".to_string()].into();
         let archive_ids: HashSet<String> = ["tg-bbb00".to_string()].into();
-        let warnings = validate_dep("tg-aaa00", "tg-bbb00", &active_ids, &archive_ids).unwrap();
-        assert!(warnings.is_empty());
+        validate_dep("tg-aaa00", "tg-bbb00", &active_ids, &archive_ids).unwrap();
     }
 
     #[test]
-    fn dep_on_nonexistent_warns() {
+    fn dep_on_nonexistent_is_rejected() {
         let active_ids: HashSet<String> = ["tg-aaa00".to_string()].into();
         let archive_ids = HashSet::new();
-        let warnings = validate_dep("tg-aaa00", "tg-zzz00", &active_ids, &archive_ids).unwrap();
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("not found"));
+        let result = validate_dep("tg-aaa00", "tg-zzz00", &active_ids, &archive_ids);
+        assert!(matches!(result, Err(TgError::DependencyMissing { .. })));
+    }
+
+    #[test]
+    fn dependency_evaluation_uses_completion_evidence_and_reports_missing_targets() {
+        // Arrange
+        let mut active_done = make_item("active-done", vec![]);
+        active_done.status = Status::Done;
+        let active_todo = make_item("active-todo", vec![]);
+        let mut archived_done = make_item("archived-done", vec![]);
+        archived_done.status = Status::Done;
+        let archived_todo = make_item("archived-todo", vec![]);
+        let dependents = [
+            make_item("ready-active", vec!["active-done"]),
+            make_item("ready-archive", vec!["archived-done"]),
+            make_item("unmet-active", vec!["active-todo"]),
+            make_item("unmet-archive", vec!["archived-todo"]),
+            make_item("unmet-missing", vec!["missing"]),
+        ];
+        let active_items = [vec![active_done, active_todo], dependents.to_vec()].concat();
+
+        // Act
+        let evaluation = evaluate_dependencies(&active_items, &[archived_done, archived_todo]);
+
+        // Assert
+        let ready_ids: HashSet<&str> = evaluation
+            .ready_items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect();
+        assert!(ready_ids.contains("ready-active"));
+        assert!(ready_ids.contains("ready-archive"));
+        assert!(!ready_ids.contains("unmet-active"));
+        assert!(!ready_ids.contains("unmet-archive"));
+        assert!(!ready_ids.contains("unmet-missing"));
+        assert_eq!(
+            evaluation.integrity_issues,
+            vec![DependencyIntegrityIssue {
+                item_id: "unmet-missing".to_string(),
+                dependency_id: "missing".to_string(),
+                kind: DependencyIntegrityKind::MissingTarget,
+            }]
+        );
     }
 
     #[test]

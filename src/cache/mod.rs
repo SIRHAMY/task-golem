@@ -64,7 +64,7 @@ use crate::store::Store;
 /// Cache schema version. Bump whenever `DDL` changes in a way that invalidates
 /// existing `cache.db` files; `open_or_rebuild` compares this value to the one
 /// stored in `_cache_meta` and forces a rebuild on mismatch.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// Full DDL for a fresh cache. Applied in one `execute_batch` call inside the
 /// rebuild transaction. Exported so Phase 4's `tg query --schema` can render it.
@@ -147,6 +147,19 @@ impl Stamp {
     };
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceStamp {
+    active: Stamp,
+    archive: Stamp,
+}
+
+fn compute_source_stamp(store: &Store) -> Result<SourceStamp, TgError> {
+    Ok(SourceStamp {
+        active: compute_stamp(&store.tasks_jsonl_path())?,
+        archive: compute_stamp(&store.archive_path())?,
+    })
+}
+
 /// Compute the stamp for `jsonl_path`. Reads the whole file for hashing; for the
 /// file sizes we target (≤ a few MB for 5k tasks) this is sub-millisecond.
 ///
@@ -176,7 +189,7 @@ pub fn compute_stamp(jsonl_path: &Path) -> Result<Stamp, TgError> {
 
 /// Read the stored stamp + schema_version from `_cache_meta`. Returns `None` if
 /// any expected row is missing or malformed — callers treat that as "rebuild".
-pub(crate) fn read_meta(conn: &Connection) -> Option<(u32, Stamp)> {
+pub(crate) fn read_meta(conn: &Connection) -> Option<(u32, SourceStamp)> {
     let get = |key: &str| -> Option<String> {
         conn.query_row(
             "SELECT value FROM _cache_meta WHERE key = ?1",
@@ -187,28 +200,34 @@ pub(crate) fn read_meta(conn: &Connection) -> Option<(u32, Stamp)> {
     };
 
     let schema_version: u32 = get("schema_version")?.parse().ok()?;
-    let mtime_nanos: i128 = get("jsonl_mtime_nanos")?.parse().ok()?;
-    let size: u64 = get("jsonl_size")?.parse().ok()?;
-    let xxh3_64: u64 = get("jsonl_xxh3")?.parse().ok()?;
+    let active = Stamp {
+        mtime_nanos: get("jsonl_mtime_nanos")?.parse().ok()?,
+        size: get("jsonl_size")?.parse().ok()?,
+        xxh3_64: get("jsonl_xxh3")?.parse().ok()?,
+    };
+    let archive = Stamp {
+        mtime_nanos: get("archive_mtime_nanos")?.parse().ok()?,
+        size: get("archive_size")?.parse().ok()?,
+        xxh3_64: get("archive_xxh3")?.parse().ok()?,
+    };
 
-    Some((
-        schema_version,
-        Stamp {
-            mtime_nanos,
-            size,
-            xxh3_64,
-        },
-    ))
+    Some((schema_version, SourceStamp { active, archive }))
 }
 
 /// Write stamp + schema_version into `_cache_meta` inside the rebuild transaction.
-pub(crate) fn write_meta(conn: &Connection, stamp: &Stamp) -> rusqlite::Result<()> {
+pub(crate) fn write_meta(conn: &Connection, stamp: &SourceStamp) -> rusqlite::Result<()> {
     let mut stmt =
         conn.prepare("INSERT OR REPLACE INTO _cache_meta(key, value) VALUES (?1, ?2)")?;
     stmt.execute(["schema_version", &SCHEMA_VERSION.to_string()])?;
-    stmt.execute(["jsonl_mtime_nanos", &stamp.mtime_nanos.to_string()])?;
-    stmt.execute(["jsonl_size", &stamp.size.to_string()])?;
-    stmt.execute(["jsonl_xxh3", &stamp.xxh3_64.to_string()])?;
+    stmt.execute(["jsonl_mtime_nanos", &stamp.active.mtime_nanos.to_string()])?;
+    stmt.execute(["jsonl_size", &stamp.active.size.to_string()])?;
+    stmt.execute(["jsonl_xxh3", &stamp.active.xxh3_64.to_string()])?;
+    stmt.execute([
+        "archive_mtime_nanos",
+        &stamp.archive.mtime_nanos.to_string(),
+    ])?;
+    stmt.execute(["archive_size", &stamp.archive.size.to_string()])?;
+    stmt.execute(["archive_xxh3", &stamp.archive.xxh3_64.to_string()])?;
     Ok(())
 }
 
@@ -219,10 +238,9 @@ pub(crate) fn write_meta(conn: &Connection, stamp: &Stamp) -> rusqlite::Result<(
 /// Returns `true` if the cache is missing, meta is unreadable, schema_version
 /// has drifted, or the stamp does not match. Does not itself touch the cache.
 pub fn is_stale(store: &Store) -> Result<bool, TgError> {
-    let jsonl_path = store.tasks_jsonl_path();
     let cache_path = store.cache_db_path();
 
-    let current_stamp = compute_stamp(&jsonl_path)?;
+    let current_stamp = compute_source_stamp(store)?;
 
     if !cache_path.exists() {
         return Ok(true);
@@ -251,10 +269,9 @@ pub fn is_stale(store: &Store) -> Result<bool, TgError> {
 /// 4. Stamp mismatch (mtime/size cheap check, xxh3 confirmation) → rebuild.
 /// 5. All three match → open read-only, no rebuild.
 pub fn open_or_rebuild(store: &Store, verbose: bool) -> Result<Connection, TgError> {
-    let jsonl_path = store.tasks_jsonl_path();
     let cache_path = store.cache_db_path();
 
-    let current_stamp = compute_stamp(&jsonl_path)?;
+    let current_stamp = compute_source_stamp(store)?;
 
     let needs_rebuild = if !cache_path.exists() {
         true
