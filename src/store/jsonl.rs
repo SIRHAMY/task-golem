@@ -146,6 +146,56 @@ pub fn read_archive(path: &Path) -> Result<Vec<Item>, TgError> {
     Ok(items)
 }
 
+/// Read every archive item and fail when any durable record is malformed.
+pub(crate) fn read_archive_strict(path: &Path) -> Result<Vec<Item>, TgError> {
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let file = fs::File::open(path).map_err(TgError::IoError)?;
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
+
+    let header_line = match lines.next() {
+        Some(Ok(line)) => line,
+        Some(Err(error)) => return Err(TgError::IoError(error)),
+        None => return Ok(vec![]),
+    };
+    let header: SchemaHeader = serde_json::from_str(&header_line).map_err(|error| {
+        TgError::StorageCorruption(format!("Invalid archive schema header: {error}"))
+    })?;
+    if header.schema_version != CURRENT_SCHEMA_VERSION {
+        return Err(TgError::SchemaVersionUnsupported {
+            found: header.schema_version,
+            supported: CURRENT_SCHEMA_VERSION,
+        });
+    }
+
+    lines
+        .enumerate()
+        .filter_map(|(index, line)| match line {
+            Ok(line) if line.trim().is_empty() => None,
+            other => Some((index, other)),
+        })
+        .map(|(index, line)| {
+            let line = line.map_err(TgError::IoError)?;
+            let item: Item = serde_json::from_str(&line).map_err(|error| {
+                TgError::StorageCorruption(format!(
+                    "Malformed archive item on line {}: {error}",
+                    index + 2
+                ))
+            })?;
+            item.validate_extensions().map_err(|error| {
+                TgError::StorageCorruption(format!(
+                    "Invalid archive extensions on line {}: {error}",
+                    index + 2
+                ))
+            })?;
+            Ok(item)
+        })
+        .collect()
+}
+
 /// Read every durable archive identity without requiring the rest of an item to be valid.
 pub fn read_archive_ids(path: &Path) -> Result<HashSet<String>, TgError> {
     if !path.exists() {

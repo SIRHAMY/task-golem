@@ -27,6 +27,7 @@ pub fn dispatch(cli: Cli) -> Result<(), TgError> {
             sets,
             parent,
         ),
+        Commands::Apply => commands::apply::run(cli.json),
         Commands::List {
             status,
             tag,

@@ -2,6 +2,7 @@ use std::fmt;
 
 use serde::Serialize;
 
+use crate::model::graph::{GraphApplyCategory, GraphApplyError};
 use crate::model::status::Status;
 
 #[derive(Debug, thiserror::Error)]
@@ -84,6 +85,9 @@ pub enum TgError {
 
     #[error("Query syntax error: {message}")]
     QuerySyntax { message: String },
+
+    #[error(transparent)]
+    GraphApply(#[from] GraphApplyError),
 }
 
 impl TgError {
@@ -106,6 +110,11 @@ impl TgError {
             | TgError::QueryDenied { .. }
             | TgError::QuerySyntax { .. } => 1,
 
+            TgError::GraphApply(error) => match error.category {
+                GraphApplyCategory::InvalidRequest | GraphApplyCategory::InvalidGraph => 1,
+                GraphApplyCategory::StorageCorruption | GraphApplyCategory::PersistenceFailure => 2,
+            },
+
             TgError::StorageCorruption(_)
             | TgError::LockTimeout(_)
             | TgError::IoError(_)
@@ -118,6 +127,10 @@ impl TgError {
     }
 
     pub fn to_json(&self) -> serde_json::Value {
+        if let TgError::GraphApply(error) = self {
+            return error.to_json(self.exit_code());
+        }
+
         serde_json::json!({
             "code": self.code(),
             "error": self.to_string(),
@@ -151,6 +164,7 @@ impl TgError {
             TgError::QueryTimeout { .. } => "query_timeout",
             TgError::QueryDenied { .. } => "query_denied",
             TgError::QuerySyntax { .. } => "query_syntax",
+            TgError::GraphApply(_) => "graph_apply",
         }
     }
 }

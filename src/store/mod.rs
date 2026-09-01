@@ -1,4 +1,5 @@
 pub mod config;
+mod graph_apply;
 pub mod jsonl;
 pub mod lock;
 pub mod root;

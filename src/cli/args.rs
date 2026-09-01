@@ -54,6 +54,9 @@ pub enum Commands {
         parent: Option<String>,
     },
 
+    /// Atomically create a graph from a JSON request on stdin
+    Apply,
+
     /// List items
     List {
         /// Filter by status

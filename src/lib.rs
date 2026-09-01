@@ -7,4 +7,5 @@ pub mod git;
 pub mod model;
 pub mod store;
 
+pub use model::graph::{GraphApplyItem, GraphApplyRequest, GraphApplyResult, GraphRef};
 pub use model::id::{generate_id, resolve_id, validate_id};
