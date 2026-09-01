@@ -64,7 +64,7 @@ use crate::store::Store;
 /// Cache schema version. Bump whenever `DDL` changes in a way that invalidates
 /// existing `cache.db` files; `open_or_rebuild` compares this value to the one
 /// stored in `_cache_meta` and forces a rebuild on mismatch.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// Full DDL for a fresh cache. Applied in one `execute_batch` call inside the
 /// rebuild transaction. Exported so Phase 4's `tg query --schema` can render it.
@@ -91,7 +91,8 @@ CREATE TABLE tasks (
   blocked_reason TEXT,
   blocked_from_status TEXT,
   claimed_by TEXT,
-  claimed_at TEXT
+  claimed_at TEXT,
+  extensions_json TEXT NOT NULL
 );
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_parent ON tasks(parent);

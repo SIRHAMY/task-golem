@@ -101,6 +101,7 @@ fn print_schema() -> Result<(), TgError> {
          \n\
          ## Notes\n\
          \n\
+         - `tasks.extensions_json` contains each active task's opaque extension metadata as a deterministic JSON object. Use SQLite JSON functions for exact key or nested-value lookup.\n\
          - Only the `table_info`, `index_list`, `index_info` PRAGMAs are permitted.\n\
          - All mutations (INSERT/UPDATE/DELETE/DDL), ATTACH/DETACH, and file-access functions are denied by the sandbox.\n\
          - `sqlite_master` and `sqlite_schema` reads are permitted for introspection.\n",

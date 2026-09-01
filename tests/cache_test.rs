@@ -120,6 +120,45 @@ fn rebuild_populates_all_tables() {
 }
 
 #[test]
+fn rebuild_projects_deterministic_extensions_and_preserves_readiness() {
+    // Arrange
+    let project = common::TestProject::new().unwrap();
+    let store = store_of(&project);
+    let mut archived_target = make_item(ID_A, "archived target");
+    archived_target.status = Status::Done;
+    jsonl::write_atomic(&store.archive_path(), &[archived_target]).unwrap();
+
+    let mut item = make_item(ID_B, "metadata task");
+    item.dependencies = vec![ID_A.to_string()];
+    item.extensions.insert(
+        "x-meta".to_string(),
+        serde_json::json!({"zeta": [3, {"nested": true}], "alpha": 1}),
+    );
+    item.extensions
+        .insert("x-owner".to_string(), serde_json::json!("consumer"));
+    write_items(&store, &[item]);
+
+    // Act
+    let conn = cache::open_or_rebuild(&store, false).unwrap();
+    let (extensions_json, is_ready): (String, i64) = conn
+        .query_row(
+            "SELECT tasks.extensions_json, task_view.is_ready
+             FROM tasks JOIN task_view USING (id)
+             WHERE tasks.id = ?1",
+            params![ID_B],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+
+    // Assert
+    assert_eq!(
+        extensions_json,
+        r#"{"x-meta":{"alpha":1,"zeta":[3,{"nested":true}]},"x-owner":"consumer"}"#
+    );
+    assert_eq!(is_ready, 1);
+}
+
+#[test]
 fn rebuild_stamp_round_trips() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);

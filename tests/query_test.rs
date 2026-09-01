@@ -7,6 +7,8 @@
 
 mod common;
 
+use std::fs;
+
 use common::TestProject;
 
 /// Helper: `tg query <sql>` and return (exit, stdout, stderr).
@@ -36,6 +38,18 @@ fn add_task(project: &TestProject, title: &str, extra: &[&str]) -> String {
         .to_string()
 }
 
+fn query_metadata_by_run(project: &TestProject, run: &str) -> serde_json::Value {
+    let sql = format!(
+        "SELECT tasks.id, tasks.extensions_json, task_view.is_ready
+         FROM tasks JOIN task_view USING (id)
+         WHERE json_extract(tasks.extensions_json, '$.\"x-consumer\".run') = '{run}'
+         ORDER BY tasks.id"
+    );
+    let (code, stdout, stderr) = run_query(project, &["query", &sql, "--json"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    serde_json::from_str(&stdout).expect("query JSON output")
+}
+
 #[test]
 fn query_count_tasks() {
     let project = TestProject::new().unwrap();
@@ -63,6 +77,84 @@ fn query_json_envelope_shape() {
 }
 
 #[test]
+fn query_metadata_recovers_from_mutation_deletion_and_stale_stamp() {
+    // Arrange
+    let project = TestProject::new().unwrap();
+    let prerequisite_id = add_task(&project, "completed prerequisite", &[]);
+    let done = project.run_tg(&["done", &prerequisite_id]);
+    assert!(
+        done.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&done.stderr)
+    );
+    let task_id = add_task(
+        &project,
+        "metadata task",
+        &[
+            "--dep",
+            &prerequisite_id,
+            "--set",
+            "x-zeta=true",
+            "--set",
+            r#"x-consumer={"run":"run-a","details":{"labels":["a","b"],"attempt":1}}"#,
+        ],
+    );
+
+    // Verify deterministic nested metadata and archived-dependency readiness.
+    let initial = query_metadata_by_run(&project, "run-a");
+    assert_eq!(
+        initial["columns"],
+        serde_json::json!(["id", "extensions_json", "is_ready"])
+    );
+    assert_eq!(initial["rows"][0][0], task_id);
+    assert_eq!(
+        initial["rows"][0][1],
+        r#"{"x-consumer":{"details":{"attempt":1,"labels":["a","b"]},"run":"run-a"},"x-zeta":true}"#
+    );
+    assert_eq!(initial["rows"][0][2], 1);
+
+    // Verify a durable metadata mutation replaces stale derived rows.
+    let edited = project.run_tg(&["edit", &task_id, "--set", "x-consumer.run=run-b"]);
+    assert!(
+        edited.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&edited.stderr)
+    );
+    let after_mutation = query_metadata_by_run(&project, "run-b");
+    assert_eq!(after_mutation["rows"][0][0], task_id);
+    assert_eq!(after_mutation["rows"][0][2], 1);
+
+    // Verify deleting the cache rebuilds current durable metadata.
+    let edited = project.run_tg(&["edit", &task_id, "--set", "x-consumer.run=run-c"]);
+    assert!(
+        edited.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&edited.stderr)
+    );
+    fs::remove_file(project.project_dir().join("cache.db")).unwrap();
+    let after_deletion = query_metadata_by_run(&project, "run-c");
+    assert_eq!(after_deletion["rows"][0][0], task_id);
+    assert_eq!(after_deletion["rows"][0][2], 1);
+
+    // Verify an explicitly stale stamp rejects tampered derived metadata.
+    let conn = rusqlite::Connection::open(project.project_dir().join("cache.db")).unwrap();
+    conn.execute(
+        "UPDATE tasks SET extensions_json = '{\"x-consumer\":{\"run\":\"stale\"}}' WHERE id = ?1",
+        [&task_id],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE _cache_meta SET value = '0' WHERE key = 'jsonl_xxh3'",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+    let after_stale_stamp = query_metadata_by_run(&project, "run-c");
+    assert_eq!(after_stale_stamp["rows"][0][0], task_id);
+    assert_eq!(after_stale_stamp["rows"][0][2], 1);
+}
+
+#[test]
 fn query_schema_prints_markdown() {
     let project = TestProject::new().unwrap();
     let (code, stdout, _) = run_query(&project, &["query", "--schema"]);
@@ -81,6 +173,10 @@ fn query_schema_prints_markdown() {
     assert!(
         stdout.contains("active tasks only"),
         "missing active-only callout"
+    );
+    assert!(
+        stdout.contains("extensions_json") && stdout.contains("opaque extension metadata"),
+        "missing extension metadata documentation"
     );
     assert!(stdout.contains("depth < 64"), "missing depth < 64 reminder");
 }

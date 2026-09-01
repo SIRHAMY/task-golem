@@ -259,14 +259,18 @@ fn insert_tasks(conn: &Connection, items: &[Item]) -> Result<(), TgError> {
             "INSERT INTO tasks(
                 id, title, status, priority, description, parent,
                 created_at, updated_at, blocked_reason, blocked_from_status,
-                claimed_by, claimed_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                claimed_by, claimed_at, extensions_json
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         )
         .map_err(|e| TgError::CacheRebuildFailed {
             detail: format!("prepare tasks: {}", e),
         })?;
 
     for item in items {
+        let extensions_json =
+            serde_json::to_string(&item.extensions).map_err(|e| TgError::CacheRebuildFailed {
+                detail: format!("serialize extensions for {}: {}", item.id, e),
+            })?;
         stmt.execute(params![
             item.id,
             item.title,
@@ -280,6 +284,7 @@ fn insert_tasks(conn: &Connection, items: &[Item]) -> Result<(), TgError> {
             item.blocked_from_status.map(status_str),
             item.claimed_by,
             item.claimed_at.map(|dt| dt.to_rfc3339()),
+            extensions_json,
         ])
         .map_err(|e| TgError::CacheRebuildFailed {
             detail: format!("insert task {}: {}", item.id, e),
