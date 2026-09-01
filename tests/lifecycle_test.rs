@@ -125,8 +125,7 @@ fn json_schema_validation_all_commands() {
 fn validate_item_schema(json: &serde_json::Value) {
     // ID format
     let id = json["id"].as_str().unwrap();
-    assert!(id.starts_with("tg-"), "ID format: {}", id);
-    assert_eq!(id.len(), 8, "ID length: {}", id);
+    task_golem::validate_id(id).expect("ID should be a canonical UUIDv7");
 
     // Status enum
     let status = json["status"].as_str().unwrap();

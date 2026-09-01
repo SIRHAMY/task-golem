@@ -235,9 +235,7 @@ fn cli_add_with_bogus_parent_errors() {
     let proj = TestProject::new().unwrap();
     let output = proj.run_tg(&["add", "Orphan", "--parent", "tg-zzz99"]);
     assert!(!output.status.success());
-    // Should be AmbiguousId/ItemNotFound from resolve_id or ParentDangling.
-    // Either way, a nonzero exit and the tasks.jsonl should not have the new
-    // item persisted.
+    // A nonzero exit must leave tasks.jsonl without the new item.
     assert_eq!(output.status.code().unwrap(), 1);
 }
 

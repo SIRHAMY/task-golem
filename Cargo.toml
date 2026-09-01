@@ -26,6 +26,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 tempfile = "3"
 thiserror = "2"
+uuid = { version = "1", features = ["v7"] }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]

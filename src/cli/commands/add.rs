@@ -28,20 +28,19 @@ pub fn run(
     Item::validate_title(&title)?;
 
     let project_dir = root::find_project_root_from_cwd()?;
-    let config = Config::load(&project_dir)?;
+    Config::load(&project_dir)?;
     let store = Store::new(project_dir);
 
     let item = store.with_lock(|store| {
         let mut items = store.load_active()?;
         let archive_ids = store.load_archive_ids()?;
 
-        // Collect all known IDs for collision check
         let mut all_ids: HashSet<String> = archive_ids.clone();
         for item in &items {
             all_ids.insert(item.id.clone());
         }
 
-        let new_id = id::generate_id_with_prefix(&all_ids, &config.id_prefix, config.id_len)?;
+        let new_id = id::generate_id(&all_ids)?;
 
         // Resolve parent ID if provided (active-only; reparent will re-validate)
         let resolved_parent = if let Some(ref p) = parent_input {
@@ -63,8 +62,8 @@ pub fn run(
                 continue; // skip duplicate deps
             }
             let warnings = deps::validate_dep(&new_id, &resolved, &active_id_set, &archive_ids)?;
-            for w in &warnings {
-                eprintln!("{}", w);
+            for warning in &warnings {
+                eprintln!("{}", warning);
             }
             resolved_deps.push(resolved);
         }

@@ -49,7 +49,7 @@ pub enum Commands {
         #[arg(long = "set", num_args = 1)]
         sets: Vec<String>,
 
-        /// Parent item ID (full, bare hex, or prefix)
+        /// Parent item ID (canonical UUIDv7)
         #[arg(long)]
         parent: Option<String>,
     },
@@ -75,7 +75,7 @@ pub enum Commands {
 
     /// Show a single item
     Show {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// Include the chronological event log at the end of the detail view
@@ -85,7 +85,7 @@ pub enum Commands {
 
     /// Edit an existing item
     Edit {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// New title
@@ -131,7 +131,7 @@ pub enum Commands {
 
     /// Remove an item
     Rm {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// Force remove even if other items depend on this one
@@ -145,7 +145,7 @@ pub enum Commands {
 
     /// Start working on an item (todo → doing)
     Do {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// Claim this item for an agent/user
@@ -155,19 +155,19 @@ pub enum Commands {
 
     /// Mark an item as done (todo/doing → done, archives item)
     Done {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
     },
 
     /// Return an item to todo (doing → todo)
     Todo {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
     },
 
     /// Block an item
     Block {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// Reason for blocking
@@ -177,7 +177,7 @@ pub enum Commands {
 
     /// Unblock an item (restores previous status)
     Unblock {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
     },
 
@@ -242,7 +242,7 @@ pub enum Commands {
 
     /// Append a free-text note event to a task
     Note {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// Note text (must be non-empty)
@@ -251,7 +251,7 @@ pub enum Commands {
 
     /// Show the chronological event log for a task
     Events {
-        /// Item ID (full, bare hex, or prefix)
+        /// Item ID (canonical UUIDv7)
         id: String,
 
         /// Emit results as NDJSON (one event per line)

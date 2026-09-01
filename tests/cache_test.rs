@@ -17,6 +17,11 @@ use task_golem::model::item::Item;
 use task_golem::model::status::Status;
 use task_golem::store::{Store, jsonl};
 
+const ID_A: &str = "018f2b1c-4d5e-7abc-8123-000000000001";
+const ID_B: &str = "018f2b1c-4d5e-7abc-8123-000000000002";
+const ID_C: &str = "018f2b1c-4d5e-7abc-8123-000000000003";
+const ID_D: &str = "018f2b1c-4d5e-7abc-8123-000000000004";
+
 /// Build an `Item` with explicit `id` / `title` and optional parent + deps.
 ///
 /// Small helper so each test stays a single readable block.
@@ -81,12 +86,12 @@ fn rebuild_populates_all_tables() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    let mut a = make_item("tg-aaa01", "Parent");
+    let mut a = make_item(ID_A, "Parent");
     a.tags = vec!["backend".to_string(), "urgent".to_string()];
 
-    let mut b = make_item("tg-bbb01", "Child");
-    b.parent = Some("tg-aaa01".to_string());
-    b.dependencies = vec!["tg-aaa01".to_string()];
+    let mut b = make_item(ID_B, "Child");
+    b.parent = Some(ID_A.to_string());
+    b.dependencies = vec![ID_A.to_string()];
     b.tags = vec!["backend".to_string()];
 
     write_items(&store, &[a, b]);
@@ -119,7 +124,7 @@ fn rebuild_stamp_round_trips() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    write_items(&store, &[make_item("tg-aaa01", "a")]);
+    write_items(&store, &[make_item(ID_A, "a")]);
     let _ = cache::open_or_rebuild(&store, false).unwrap();
 
     // Stamp must match the JSONL file on disk.
@@ -140,7 +145,7 @@ fn rebuild_is_idempotent() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    let mut a = make_item("tg-aaa01", "a");
+    let mut a = make_item(ID_A, "a");
     a.tags = vec!["x".to_string()];
     write_items(&store, &[a]);
 
@@ -168,14 +173,11 @@ fn stamp_mismatch_triggers_rebuild() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    write_items(&store, &[make_item("tg-aaa01", "a")]);
+    write_items(&store, &[make_item(ID_A, "a")]);
     let _ = cache::open_or_rebuild(&store, false).unwrap();
 
     // Mutate JSONL behind the cache's back.
-    write_items(
-        &store,
-        &[make_item("tg-aaa01", "a"), make_item("tg-bbb01", "b")],
-    );
+    write_items(&store, &[make_item(ID_A, "a"), make_item(ID_B, "b")]);
 
     let conn = cache::open_or_rebuild(&store, false).unwrap();
     let count: i64 = conn
@@ -190,11 +192,11 @@ fn task_view_depth_from_root_correct() {
     let store = store_of(&project);
 
     // Tree: root -> mid -> leaf.
-    let root = make_item("tg-root0", "root");
-    let mut mid = make_item("tg-mid00", "mid");
-    mid.parent = Some("tg-root0".to_string());
-    let mut leaf = make_item("tg-leaf0", "leaf");
-    leaf.parent = Some("tg-mid00".to_string());
+    let root = make_item(ID_A, "root");
+    let mut mid = make_item(ID_B, "mid");
+    mid.parent = Some(ID_A.to_string());
+    let mut leaf = make_item(ID_C, "leaf");
+    leaf.parent = Some(ID_B.to_string());
     write_items(&store, &[root, mid, leaf]);
 
     let conn = cache::open_or_rebuild(&store, false).unwrap();
@@ -208,9 +210,9 @@ fn task_view_depth_from_root_correct() {
         .unwrap()
     };
 
-    assert_eq!(depth("tg-root0"), 0);
-    assert_eq!(depth("tg-mid00"), 1);
-    assert_eq!(depth("tg-leaf0"), 2);
+    assert_eq!(depth(ID_A), 0);
+    assert_eq!(depth(ID_B), 1);
+    assert_eq!(depth(ID_C), 2);
 }
 
 #[test]
@@ -220,16 +222,16 @@ fn task_view_is_ready_correct() {
 
     // `done_dep` is done; `ready_task` depends on it → is_ready=1.
     // `blocked_task` depends on an undone `todo_dep` → is_ready=0.
-    let mut done_dep = make_item("tg-done0", "done dep");
+    let mut done_dep = make_item(ID_A, "done dep");
     done_dep.status = Status::Done;
 
-    let todo_dep = make_item("tg-todo0", "todo dep");
+    let todo_dep = make_item(ID_B, "todo dep");
 
-    let mut ready_task = make_item("tg-rdy00", "ready");
-    ready_task.dependencies = vec!["tg-done0".to_string()];
+    let mut ready_task = make_item(ID_C, "ready");
+    ready_task.dependencies = vec![ID_A.to_string()];
 
-    let mut blocked_task = make_item("tg-blk00", "blocked");
-    blocked_task.dependencies = vec!["tg-todo0".to_string()];
+    let mut blocked_task = make_item(ID_D, "blocked");
+    blocked_task.dependencies = vec![ID_B.to_string()];
 
     write_items(&store, &[done_dep, todo_dep, ready_task, blocked_task]);
 
@@ -252,12 +254,12 @@ fn task_view_is_ready_correct() {
         .unwrap()
     };
 
-    assert_eq!(ready_of("tg-rdy00"), 1);
-    assert_eq!(unmet_of("tg-rdy00"), 0);
-    assert_eq!(ready_of("tg-blk00"), 0);
-    assert_eq!(unmet_of("tg-blk00"), 1);
+    assert_eq!(ready_of(ID_C), 1);
+    assert_eq!(unmet_of(ID_C), 0);
+    assert_eq!(ready_of(ID_D), 0);
+    assert_eq!(unmet_of(ID_D), 1);
     // done dep itself is not `todo` so is_ready=0.
-    assert_eq!(ready_of("tg-done0"), 0);
+    assert_eq!(ready_of(ID_A), 0);
 }
 
 #[test]
@@ -266,17 +268,17 @@ fn cyclic_parent_aborts_rebuild() {
     let store = store_of(&project);
 
     // Introduce a parent cycle by writing directly (bypasses CLI validation).
-    let mut a = make_item("tg-aaa01", "a");
-    a.parent = Some("tg-bbb01".to_string());
-    let mut b = make_item("tg-bbb01", "b");
-    b.parent = Some("tg-aaa01".to_string());
+    let mut a = make_item(ID_A, "a");
+    a.parent = Some(ID_B.to_string());
+    let mut b = make_item(ID_B, "b");
+    b.parent = Some(ID_A.to_string());
     write_items(&store, &[a, b]);
 
     let err = cache::open_or_rebuild(&store, false).unwrap_err();
     match err {
         TgError::ParentCycle { ids } => {
             assert!(
-                ids.iter().any(|i| i == "tg-aaa01") && ids.iter().any(|i| i == "tg-bbb01"),
+                ids.iter().any(|id| id == ID_A) && ids.iter().any(|id| id == ID_B),
                 "cycle should name the offending ids, got: {:?}",
                 ids
             );
@@ -290,17 +292,17 @@ fn cyclic_dep_aborts_rebuild() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    let mut a = make_item("tg-aaa01", "a");
-    a.dependencies = vec!["tg-bbb01".to_string()];
-    let mut b = make_item("tg-bbb01", "b");
-    b.dependencies = vec!["tg-aaa01".to_string()];
+    let mut a = make_item(ID_A, "a");
+    a.dependencies = vec![ID_B.to_string()];
+    let mut b = make_item(ID_B, "b");
+    b.dependencies = vec![ID_A.to_string()];
     write_items(&store, &[a, b]);
 
     let err = cache::open_or_rebuild(&store, false).unwrap_err();
     match err {
         TgError::CycleDetected(msg) => {
             assert!(
-                msg.contains("tg-aaa01") && msg.contains("tg-bbb01"),
+                msg.contains(ID_A) && msg.contains(ID_B),
                 "message should name offending ids: {}",
                 msg
             );
@@ -319,16 +321,20 @@ fn duplicate_id_aborts_rebuild() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    // Hand-craft a JSONL with the same ID twice (write_atomic sorts but keeps duplicates).
-    let a = make_item("tg-aaa01", "first");
-    let b = make_item("tg-aaa01", "second");
-    write_items(&store, &[a, b]);
+    // Hand-craft corruption because the public writer rejects duplicate IDs.
+    let a = serde_json::to_string(&make_item(ID_A, "first")).unwrap();
+    let b = serde_json::to_string(&make_item(ID_A, "second")).unwrap();
+    fs::write(
+        store.tasks_path(),
+        format!("{{\"schema_version\":1}}\n{a}\n{b}\n"),
+    )
+    .unwrap();
 
     let err = cache::open_or_rebuild(&store, false).unwrap_err();
     match err {
         TgError::StorageCorruption(msg) => {
             assert!(msg.contains("duplicate"), "msg: {}", msg);
-            assert!(msg.contains("tg-aaa01"), "msg: {}", msg);
+            assert!(msg.contains(ID_A), "msg: {}", msg);
         }
         other => panic!("expected StorageCorruption, got {:?}", other),
     }
@@ -339,7 +345,7 @@ fn schema_version_mismatch_rebuilds() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    write_items(&store, &[make_item("tg-aaa01", "a")]);
+    write_items(&store, &[make_item(ID_A, "a")]);
     let _ = cache::open_or_rebuild(&store, false).unwrap();
 
     // Poke the schema version to pretend the cache came from an older build.
@@ -371,7 +377,7 @@ fn rebuild_writes_gitignore() {
     let gi = store.gitignore_path();
     let _ = fs::remove_file(&gi);
 
-    write_items(&store, &[make_item("tg-aaa01", "a")]);
+    write_items(&store, &[make_item(ID_A, "a")]);
     let _ = cache::open_or_rebuild(&store, false).unwrap();
 
     let contents = fs::read_to_string(&gi).unwrap();
@@ -393,7 +399,7 @@ fn unwritable_cache_dir_falls_back_to_memory() {
     let project = common::TestProject::new().unwrap();
     let store = store_of(&project);
 
-    write_items(&store, &[make_item("tg-aaa01", "a")]);
+    write_items(&store, &[make_item(ID_A, "a")]);
 
     let dir = project.project_dir();
     let original = fs::metadata(&dir).unwrap().permissions();
@@ -433,15 +439,15 @@ fn rebuild_perf_500_and_5000() {
 
         let mut items = Vec::with_capacity(n);
         for i in 0..n {
-            let id = format!("tg-{:05x}", i);
+            let id = format!("018f2b1c-4d5e-7abc-8123-{i:012x}");
             let mut item = make_item(&id, &format!("task #{}", i));
             // ~300-byte description so the JSONL hash is exercised realistically.
             item.description = Some("x".repeat(300));
             if i > 0 && i % 5 == 0 {
-                item.parent = Some(format!("tg-{:05x}", i - 1));
+                item.parent = Some(format!("018f2b1c-4d5e-7abc-8123-{:012x}", i - 1));
             }
             if i > 1 && i % 7 == 0 {
-                item.dependencies = vec![format!("tg-{:05x}", i - 1)];
+                item.dependencies = vec![format!("018f2b1c-4d5e-7abc-8123-{:012x}", i - 1)];
             }
             items.push(item);
         }

@@ -38,9 +38,8 @@ pub fn run(
         None
     };
 
-    // Resolve parent ID up-front against the full active+archive ID space so
-    // prefix/bare-hex resolution doesn't fail when `--status` narrows the
-    // item set below the parent itself.
+    // Resolve the parent before status filtering so a valid parent remains in
+    // scope when `--status` narrows the displayed item set.
     let resolved_parent = if let Some(ref parent_input) = parent_filter {
         let active = store.load_active()?;
         let active_ids: Vec<String> = active.iter().map(|i| i.id.clone()).collect();

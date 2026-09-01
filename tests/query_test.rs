@@ -28,7 +28,7 @@ fn add_task(project: &TestProject, title: &str, extra: &[&str]) -> String {
         .lines()
         .find(|l| l.contains("Created item:"))
         .unwrap_or_else(|| panic!("no Created item line in: {}", stdout));
-    // "Created item: tg-xxxxx - title"
+    // "Created item: <uuid> - title"
     id_line
         .split_whitespace()
         .nth(2)

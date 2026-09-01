@@ -9,7 +9,7 @@ fn generate_items_jsonl(n: usize) -> String {
 
     let now = "2026-02-24T12:00:00Z";
     for i in 0..n {
-        let id = format!("tg-{:05x}", i);
+        let id = format!("018f2b1c-4d5e-7abc-8123-0001{i:08x}");
         let item = serde_json::json!({
             "id": id,
             "title": format!("Item {}", i),
@@ -83,7 +83,7 @@ fn bench_ready_500(c: &mut Criterion) {
         b.iter(|| {
             let output = Command::new(assert_cmd::cargo::cargo_bin!("tg"))
                 .current_dir(tmp.path())
-                .args(["--json", "show", "tg-000fa"])
+                .args(["--json", "show", "018f2b1c-4d5e-7abc-8123-0001000000fa"])
                 .output()
                 .expect("failed to execute tg");
             assert!(output.status.success());

@@ -579,11 +579,7 @@ fn validate_item_schema(item: &serde_json::Value) {
 
     // ID format
     let id = item["id"].as_str().unwrap();
-    assert!(
-        id.starts_with("tg-") && id.len() == 8,
-        "ID must match tg-XXXXX format: {}",
-        id
-    );
+    task_golem::validate_id(id).expect("ID must be a canonical UUIDv7");
 
     // Status is valid enum
     let status = item["status"].as_str().unwrap();

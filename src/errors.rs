@@ -10,14 +10,11 @@ pub enum TgError {
     #[error("Item not found: {0}")]
     ItemNotFound(String),
 
+    #[error("Invalid item ID: {0}")]
+    InvalidId(String),
+
     #[error("Invalid transition: {from} cannot transition to {to}")]
     InvalidTransition { from: Status, to: Status },
-
-    #[error("Ambiguous ID prefix '{prefix}': matches {matches:?}")]
-    AmbiguousId {
-        prefix: String,
-        matches: Vec<String>,
-    },
 
     #[error("Dependency cycle detected: {0}")]
     CycleDetected(String),
@@ -87,8 +84,8 @@ impl TgError {
     pub fn exit_code(&self) -> i32 {
         match self {
             TgError::ItemNotFound(_)
+            | TgError::InvalidId(_)
             | TgError::InvalidTransition { .. }
-            | TgError::AmbiguousId { .. }
             | TgError::CycleDetected(_)
             | TgError::AlreadyClaimed(_)
             | TgError::InvalidInput(_)
@@ -115,9 +112,38 @@ impl TgError {
 
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
+            "code": self.code(),
             "error": self.to_string(),
             "exit_code": self.exit_code(),
         })
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            TgError::ItemNotFound(_) => "item_not_found",
+            TgError::InvalidId(_) => "invalid_id",
+            TgError::InvalidTransition { .. } => "invalid_transition",
+            TgError::CycleDetected(_) => "cycle_detected",
+            TgError::AlreadyClaimed(_) => "already_claimed",
+            TgError::InvalidInput(_) => "invalid_input",
+            TgError::NotInitialized(_) => "not_initialized",
+            TgError::DependentExists(_, _) => "dependent_exists",
+            TgError::ParentSelfReference { .. } => "parent_self_reference",
+            TgError::ParentCycle { .. } => "parent_cycle",
+            TgError::ParentDangling { .. } => "parent_dangling",
+            TgError::ParentHasChildren { .. } => "parent_has_children",
+            TgError::StorageCorruption(_) => "storage_corruption",
+            TgError::LockTimeout(_) => "lock_timeout",
+            TgError::IoError(_) => "io_error",
+            TgError::IdCollisionExhausted(_) => "id_collision_exhausted",
+            TgError::SchemaVersionUnsupported { .. } => "schema_version_unsupported",
+            TgError::CacheCorrupt { .. } => "cache_corrupt",
+            TgError::CacheRebuildFailed { .. } => "cache_rebuild_failed",
+            TgError::CacheSchemaVersionMismatch { .. } => "cache_schema_version_mismatch",
+            TgError::QueryTimeout { .. } => "query_timeout",
+            TgError::QueryDenied { .. } => "query_denied",
+            TgError::QuerySyntax { .. } => "query_syntax",
+        }
     }
 }
 

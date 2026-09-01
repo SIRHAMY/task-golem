@@ -10,6 +10,7 @@ use crate::errors::TgError;
 use crate::events::record::Event;
 use crate::events::witness::StatusChange;
 use crate::events::{append as events_append, archive as events_archive, author as events_author};
+use crate::model::id;
 use crate::model::item::Item;
 
 /// Gitignore lines that keep the SQLite cache out of git.
@@ -97,17 +98,18 @@ impl Store {
 
     /// Save active items atomically (must be called under lock).
     pub fn save_active(&self, items: &[Item]) -> Result<(), TgError> {
+        self.validate_active_write(items)?;
         jsonl::write_atomic(&self.tasks_path(), items)
     }
 
     /// Scan archive line-by-line extracting only IDs (fast path).
     pub fn load_archive_ids(&self) -> Result<HashSet<String>, TgError> {
-        let items = jsonl::read_archive(&self.archive_path())?;
-        Ok(items.into_iter().map(|item| item.id).collect())
+        jsonl::read_archive_ids(&self.archive_path())
     }
 
     /// Scan archive for a specific item.
     pub fn load_archive_item(&self, id: &str) -> Result<Option<Item>, TgError> {
+        id::validate_id(id)?;
         let items = jsonl::read_archive(&self.archive_path())?;
         Ok(items.into_iter().find(|item| item.id == id))
     }
@@ -120,17 +122,34 @@ impl Store {
     /// Union of active IDs + archive IDs.
     pub fn all_known_ids(&self) -> Result<HashSet<String>, TgError> {
         let active = self.load_active()?;
+        let active_ids = jsonl::validate_item_ids(&active)?;
         let archive_ids = self.load_archive_ids()?;
+        ensure_disjoint_ids(&active_ids, &archive_ids)?;
         let mut all = archive_ids;
-        for item in active {
-            all.insert(item.id);
-        }
+        all.extend(active_ids);
         Ok(all)
     }
 
     /// Append a single item to the archive file.
     pub fn append_to_archive(&self, item: &Item) -> Result<(), TgError> {
+        id::validate_id(&item.id)?;
+        let active_ids = jsonl::validate_item_ids(&self.load_active()?)?;
+        let archive_ids = self.load_archive_ids()?;
+        if active_ids.contains(&item.id) || archive_ids.contains(&item.id) {
+            return Err(jsonl::duplicate_id_error(&item.id));
+        }
         jsonl::append_to_archive(&self.archive_path(), item)
+    }
+
+    /// Persist recovery of one already-done active item without emitting an event.
+    pub fn commit_archive_recovery(
+        &self,
+        active_items: &[Item],
+        done_item: &Item,
+    ) -> Result<(), TgError> {
+        self.validate_archive_move(active_items, done_item)?;
+        jsonl::append_to_archive(&self.archive_path(), done_item)?;
+        jsonl::write_atomic(&self.tasks_path(), active_items)
     }
 
     /// Redeem a [`StatusChange`] witness for a non-terminal transition.
@@ -153,6 +172,11 @@ impl Store {
         change: StatusChange,
     ) -> Result<(), TgError> {
         let (task_id, new_status, text) = change.fields();
+        self.validate_active_write(items)?;
+        id::validate_id(task_id)?;
+        if !items.iter().any(|item| item.id == task_id) {
+            return Err(TgError::ItemNotFound(task_id.to_string()));
+        }
         let author = events_author::resolve();
         let event = Event::status_transition(task_id, author, new_status, text);
         events_append::write(&self.events_path(), &event)?;
@@ -178,10 +202,18 @@ impl Store {
         change: StatusChange,
     ) -> Result<(), TgError> {
         let (task_id, new_status, text) = change.fields();
+        self.validate_archive_move(items, done_item)?;
+        id::validate_id(task_id)?;
+        if task_id != done_item.id {
+            return Err(TgError::StorageCorruption(format!(
+                "Status change ID {task_id} does not match archived item ID {}",
+                done_item.id
+            )));
+        }
         let author = events_author::resolve();
         let event = Event::status_transition(task_id, author, new_status, text);
         events_append::write(&self.events_path(), &event)?;
-        self.append_to_archive(done_item)?;
+        jsonl::append_to_archive(&self.archive_path(), done_item)?;
         jsonl::write_atomic(&self.tasks_path(), items)?;
         // Move every event for this task from events.jsonl to
         // events.archive.jsonl. Runs last so the task mutation is durable
@@ -205,6 +237,7 @@ impl Store {
     ///
     /// Returns the `Event` that was appended (useful for CLI output).
     pub fn append_note(&self, task_id: &str, text: &str) -> Result<Event, TgError> {
+        id::validate_id(task_id)?;
         let items = self.load_active()?;
         if !items.iter().any(|i| i.id == task_id) {
             return Err(TgError::ItemNotFound(task_id.to_string()));
@@ -267,4 +300,35 @@ impl Store {
         f.sync_all().map_err(TgError::IoError)?;
         Ok(())
     }
+
+    fn validate_active_write(&self, items: &[Item]) -> Result<(), TgError> {
+        let active_ids = jsonl::validate_item_ids(items)?;
+        let archive_ids = self.load_archive_ids()?;
+        ensure_disjoint_ids(&active_ids, &archive_ids)
+    }
+
+    fn validate_archive_move(&self, active_items: &[Item], item: &Item) -> Result<(), TgError> {
+        let active_ids = jsonl::validate_item_ids(active_items)?;
+        id::validate_id(&item.id)?;
+        if active_ids.contains(&item.id) {
+            return Err(jsonl::duplicate_id_error(&item.id));
+        }
+
+        let archive_ids = self.load_archive_ids()?;
+        ensure_disjoint_ids(&active_ids, &archive_ids)?;
+        if archive_ids.contains(&item.id) {
+            return Err(jsonl::duplicate_id_error(&item.id));
+        }
+        Ok(())
+    }
+}
+
+fn ensure_disjoint_ids(
+    active_ids: &HashSet<String>,
+    archive_ids: &HashSet<String>,
+) -> Result<(), TgError> {
+    if let Some(duplicate) = active_ids.intersection(archive_ids).next() {
+        return Err(jsonl::duplicate_id_error(duplicate));
+    }
+    Ok(())
 }

@@ -27,7 +27,7 @@ tg add "Fix login timeout bug"
 tg list
 
 # Show item details
-tg show tg-a1b2c
+tg show 018f2b1c-4d5e-7abc-8123-456789abcdef
 ```
 
 ## Commands
@@ -35,7 +35,7 @@ tg show tg-a1b2c
 | Command | What it does |
 |---------|-------------|
 | `init` | Create `.task-golem/` directory with empty store |
-| `add "<title>"` | Add a new item (generates a hex ID) |
+| `add "<title>"` | Add a new item (generates a canonical UUIDv7) |
 | `list` | Show all active items (add `--blocked` for blocked items) |
 | `show <ID>` | Show full details of an item (add `--events` for the event log) |
 | `ready` | Show items with `todo` status |
@@ -48,9 +48,9 @@ tg show tg-a1b2c
 Every status transition (`do`, `done`, `todo`, `block`, `unblock`) automatically appends a structured event to `.task-golem/events.jsonl`. Agents and humans can also append free-text notes:
 
 ```bash
-tg note tg-a1b2c "tried approach X, hit verification ceiling on browser check"
-tg events tg-a1b2c           # human table view
-tg events tg-a1b2c --json    # NDJSON for downstream tools
+tg note 018f2b1c-4d5e-7abc-8123-456789abcdef "tried approach X, hit verification ceiling on browser check"
+tg events 018f2b1c-4d5e-7abc-8123-456789abcdef           # human table view
+tg events 018f2b1c-4d5e-7abc-8123-456789abcdef --json    # NDJSON for downstream tools
 ```
 
 Notes are intended as lightweight breadcrumbs for stalls, verification ceilings, and context-for-next-session handoffs. They are capped at 2048 bytes per event (including the trailing newline on disk).
@@ -86,7 +86,7 @@ store.with_lock(|s| {
 })?;
 ```
 
-Key library exports: `model` (Item, Status, ID generation), `store` (Store with file locking), `errors` (TgError), `git` (stage_self, commit).
+Key library exports: canonical UUIDv7 ID generation, validation, and exact resolution; `model` (Item, Status); `store` (Store with file locking); `errors` (TgError); and `git` (stage_self, commit).
 
 ## License
 

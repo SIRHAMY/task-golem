@@ -7,4 +7,4 @@ pub mod git;
 pub mod model;
 pub mod store;
 
-pub use model::id::generate_id_with_prefix;
+pub use model::id::{generate_id, resolve_id, validate_id};

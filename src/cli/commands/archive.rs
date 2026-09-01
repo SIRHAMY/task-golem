@@ -87,13 +87,13 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
                 continue;
             }
 
-            // Pull the done item out and append to archive.
+            // Pull the done item out and persist the archive-first recovery.
             let idx = active_items
                 .iter()
                 .position(|i| i.id == candidate_id)
                 .expect("candidate collected from the same slice");
             let done_item = active_items.remove(idx);
-            store.append_to_archive(&done_item)?;
+            store.commit_archive_recovery(&active_items, &done_item)?;
             // Follow the task's events into events.archive.jsonl. No events
             // are *emitted* here (the status didn't change — it was already
             // Done); existing events from prior transitions or notes move
@@ -104,10 +104,6 @@ pub fn run(json_mode: bool, before: Option<String>) -> Result<(), TgError> {
                 &done_item.id,
             )?;
             recovered.push(done_item);
-        }
-
-        if !recovered.is_empty() {
-            store.save_active(&active_items)?;
         }
 
         // If at least one candidate existed and all were skipped, signal the
