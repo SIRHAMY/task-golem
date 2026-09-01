@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TG identity and graph apply</title>
+  <style>
+    :root {
+      /* structural base — the calm carrier; most of every artifact is just these */
+      --canvas:    #0d0d0d;
+      --primary:   #e5e3de;
+      --secondary: #9ca3af;
+      --rule:      #2a2a2a;
+      --code-bg:   #1a1a1a;
+
+      /* surface elevation — cards/panels lifted off the canvas. --raise is the
+         default card, --raise2 a nested fill, --panel a slightly cooler card,
+         --dim a faint border/text for de-emphasized (future/disabled) elements. */
+      --raise:  #161616;
+      --raise2: #1c1c1c;
+      --panel:  #131313;
+      --dim:    #6b7280;
+
+      /* semantic signal — only where content has good / warning / bad meaning. Sparingly.
+         Pair each with its -bg tint for chips/cards. Keep --bad scarce. */
+      --good: #10b981;  --good-bg:   #0f211a;   /* success / correct / positive */
+      --warn: #e0b341;  --warn-bg:   #241f10;   /* caution / warning / unverified */
+      --bad:  #f0726b;  --bad-bg:    #2a1614;   /* error / blocker — keep scarce */
+
+      /* accent — the brand green, its own token (NOT an alias of --good, though
+         the hex matches today): --good marks success/done status; --accent marks
+         the ONE thing to look at. Budget: one accent moment per view. */
+      --accent: #10b981;   /* brand accent + links */
+      --accent-bg: #0f211a;   /* accent tint for badges/highlighted boxes */
+
+      /* font stacks — reference these so a font swap is one edit.
+         Three typographic voices: judgment, body, and metadata. */
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: "IBM Plex Serif", Georgia, Cambria, "Times New Roman", serif;
+    }
+
+    html, body {
+      background: var(--canvas);
+      color: var(--primary);
+      font-family: var(--sans);
+      margin: 0;
+    }
+    html { scroll-behavior: smooth; }
+    a { color: var(--accent); }
+    code, pre { font-family: var(--mono); background: var(--code-bg); color: var(--primary); }
+    code { padding: .1em .35em; border-radius: 4px; }
+    pre { margin: 1rem 0; padding: 1rem; border: 1px solid var(--rule); border-radius: 6px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+    button, textarea { font: inherit; }
+    button:focus-visible, a:focus-visible, summary:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+    .voice-judgment { font-family: var(--serif); font-weight: 500; }
+    .voice-meta { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--secondary); }
+    .muted { color: var(--secondary); }
+    .accent { color: var(--accent); }
+    .emph { color: var(--primary); font-weight: 600; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+
+    body { min-height: 100vh; }
+    .site-header { border-bottom: 1px solid var(--rule); }
+    .header-inner, main, footer { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+    .header-inner { padding: 22px 0 20px; display: flex; justify-content: space-between; gap: 24px; align-items: start; }
+    .eyebrow { margin: 0 0 10px; }
+    .brand { color: var(--primary); text-decoration: none; font-weight: 600; letter-spacing: .01em; }
+    .header-note { margin: 2px 0 0; text-align: right; max-width: 34ch; }
+    main { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 44px; padding: 42px 0 80px; }
+    .toc { position: sticky; top: 18px; align-self: start; }
+    .toc summary { cursor: pointer; list-style: none; }
+    .toc summary::-webkit-details-marker { display: none; }
+    .toc summary::after { content: " +"; color: var(--accent); }
+    .toc[open] summary::after { content: " −"; }
+    .toc ol { padding: 12px 0 0 18px; margin: 0; }
+    .toc li { padding: 0 0 10px; }
+    .toc a { text-decoration: none; color: var(--secondary); font-size: 13px; }
+    .toc a:hover, .toc a:focus-visible { color: var(--primary); }
+    .content { min-width: 0; }
+    .hero { padding-bottom: 34px; border-bottom: 1px solid var(--rule); }
+    h1 { font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.03; letter-spacing: -.03em; margin: 0 0 16px; max-width: 14ch; }
+    h2 { font-size: clamp(1.55rem, 3vw, 2.1rem); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 14px; }
+    h3 { font-size: 1.05rem; margin: 0 0 8px; }
+    p { line-height: 1.62; max-width: 72ch; margin: 0 0 15px; }
+    .thesis { font-size: 1.18rem; line-height: 1.5; max-width: 66ch; }
+    .handle { color: var(--secondary); margin-right: 8px; white-space: nowrap; }
+    section { scroll-margin-top: 24px; padding: 40px 0 0; }
+    .bluf { font-size: 1.04rem; color: var(--primary); }
+    .source-chip { display: inline-block; color: var(--secondary); border: 1px solid var(--rule); border-radius: 4px; padding: 2px 6px; font: 11px var(--mono); letter-spacing: .02em; vertical-align: .08em; white-space: nowrap; }
+    .callout { border-left: 3px solid var(--accent); background: var(--accent-bg); padding: 14px 16px; margin: 20px 0; }
+    .callout p:last-child { margin-bottom: 0; }
+    .hint { margin: 12px 0 0; }
+
+    .graph-figure { margin: 24px 0 8px; border: 1px solid var(--rule); background: var(--panel); }
+    .figure-head { padding: 16px 18px 0; }
+    .figure-title { margin: 0 0 5px; font-size: 1rem; }
+    .figure-caption { padding: 10px 18px 16px; margin: 0; color: var(--secondary); font-size: .94rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 18px; border-top: 1px solid var(--rule); color: var(--secondary); font-size: .8rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .key { width: 18px; height: 3px; background: var(--primary); display: inline-block; }
+    .key.dep { background: var(--warn); }
+    .key.boundary { height: 18px; width: 3px; background: var(--accent); }
+    .graph-svg { display: block; width: 100%; height: auto; }
+    .graph-svg text { font-family: var(--sans); fill: var(--primary); }
+    .graph-svg .meta { font-family: var(--mono); font-size: 13px; fill: var(--secondary); letter-spacing: .06em; text-transform: uppercase; }
+    .graph-svg .node { fill: var(--raise2); stroke: var(--primary); stroke-width: 2; }
+    .graph-svg .node-id { fill: var(--code-bg); stroke: var(--secondary); stroke-width: 1.5; }
+    .graph-svg .edge-parent { stroke: var(--primary); stroke-width: 3; fill: none; }
+    .graph-svg .edge-dep { stroke: var(--warn); stroke-width: 3; fill: none; stroke-dasharray: 8 5; }
+    .graph-svg .map-line { stroke: var(--secondary); stroke-width: 1.5; fill: none; stroke-dasharray: 4 5; }
+    .graph-svg .edge-label { font-size: 12px; fill: var(--secondary); }
+    .graph-svg .boundary { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 7 7; }
+
+    .request-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .72fr); gap: 14px; margin-top: 20px; }
+    .code-panel { min-width: 0; }
+    .code-label { margin: 0 0 7px; }
+    .request-result pre { height: calc(100% - 27px); box-sizing: border-box; margin-top: 0; font-size: .78rem; line-height: 1.55; }
+
+    .phase-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin: 22px 0 12px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+    .phase { position: relative; padding: 18px 16px 17px 0; margin-right: 16px; }
+    .phase:not(:last-child)::after { content: "→"; position: absolute; right: -7px; top: 44px; color: var(--secondary); font-size: 1.2rem; }
+    .phase-num { display: block; margin-bottom: 12px; color: var(--accent); }
+    .phase p { font-size: .9rem; line-height: 1.45; margin: 0; }
+    .failure-line { display: flex; align-items: center; gap: 12px; color: var(--bad); font-size: .9rem; margin: 14px 0 0; }
+    .failure-line::before { content: ""; width: 28px; border-top: 2px solid var(--bad); }
+    .not-mutated { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--rule); background: var(--raise); }
+    .not-mutated ul, .tight-list { margin: 9px 0 0; padding-left: 20px; }
+    li { line-height: 1.55; margin: 6px 0; }
+
+    .compare { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: .91rem; }
+    .compare th, .compare td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); padding: 11px 12px 11px 0; }
+    .compare th { color: var(--secondary); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .compare td:first-child { width: 25%; color: var(--primary); font-weight: 600; }
+    .yes { color: var(--good); }
+    .no { color: var(--secondary); }
+    .choices { margin-top: 20px; padding: 15px 16px; border: 1px solid var(--rule); }
+    .choices p:last-child { margin-bottom: 0; }
+
+    details.depth { border-top: 1px solid var(--rule); margin-top: 22px; }
+    details.depth summary { cursor: pointer; padding: 13px 0; color: var(--primary); font-weight: 600; }
+    details.depth summary::marker { color: var(--accent); }
+    details.depth > div { padding: 0 0 6px; }
+    .anchors { columns: 2; column-gap: 34px; }
+    .anchors p { break-inside: avoid; font-size: .88rem; }
+    .anchors code { overflow-wrap: anywhere; }
+
+    .answer-back { border-top: 1px solid var(--rule); margin-top: 36px; padding-top: 30px; }
+    .reply-box { width: 100%; box-sizing: border-box; min-height: 205px; resize: vertical; color: var(--primary); background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; padding: 13px; line-height: 1.5; font: .82rem var(--mono); }
+    .copy-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+    .copy-button { cursor: pointer; border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 4px; padding: 8px 12px; }
+    .copy-button:hover { background: var(--accent-bg); }
+    footer { border-top: 1px solid var(--rule); padding: 18px 0 28px; }
+
+    @media (max-width: 720px) {
+      .header-inner, main, footer { width: min(100% - 28px, 680px); }
+      .header-inner { display: block; }
+      .header-note { text-align: left; margin-top: 10px; }
+      main { display: block; padding-top: 24px; }
+      .toc { position: static; margin-bottom: 28px; border: 1px solid var(--rule); padding: 10px 12px; }
+      .toc ol { padding-bottom: 2px; }
+      h1 { max-width: 18ch; }
+      section { padding-top: 32px; }
+      .request-result { grid-template-columns: 1fr; }
+      .request-result pre { height: auto; }
+      .phase-flow { grid-template-columns: 1fr; padding: 4px 0; }
+      .phase { padding: 13px 0 13px 34px; margin: 0; border-bottom: 1px solid var(--rule); }
+      .phase:last-child { border-bottom: 0; }
+      .phase:not(:last-child)::after { content: "↓"; right: auto; left: 9px; top: auto; bottom: -10px; z-index: 1; background: var(--canvas); padding: 0 2px; }
+      .phase-num { position: absolute; left: 0; top: 14px; }
+      .graph-svg { min-width: 560px; }
+      .graph-figure { overflow-x: auto; }
+      .legend { font-size: .76rem; }
+      .compare { font-size: .84rem; }
+      .compare th, .compare td { padding-right: 8px; }
+      .compare td:first-child { width: 29%; }
+      .anchors { columns: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <p class="voice-meta eyebrow">TASK GOLEM · FORWARD EXPLAINER</p>
+        <a class="brand" href="#top">identity graph apply</a>
+      </div>
+      <p class="voice-meta header-note">A generic storage boundary for complete graph creation</p>
+    </div>
+  </header>
+
+  <main id="top">
+    <details class="toc" open>
+      <summary class="voice-meta">On this page</summary>
+      <ol>
+        <li><a href="#graph">One graph, two identities</a></li>
+        <li><a href="#boundary">Names become durable edges</a></li>
+        <li><a href="#commit">Four phases, one commit</a></li>
+        <li><a href="#guarantees">Guarantees and caller limits</a></li>
+        <li><a href="#generic">Why TG stays generic</a></li>
+        <li><a href="#questions">Questions after the read</a></li>
+        <li><a href="#answer-back">Answer back</a></li>
+      </ol>
+    </details>
+
+    <div class="content">
+      <header class="hero">
+        <p class="voice-meta">CHANGE 2026-08-29 · DESIGN READY · RFC APPROVED</p>
+        <h1 class="voice-judgment">Local graph names become durable TG identity.</h1>
+        <p class="thesis"><span class="handle">§1</span>Consumers describe a graph with temporary local names; TG assigns opaque UUIDv7s and commits one validated snapshot, or changes nothing.</p>
+        <div class="callout">
+          <p><strong>The mental model.</strong> Treat <code>apply_graph</code> as a create-only boundary. It is not a replay API, an update API, or a workflow engine.</p>
+        </div>
+      </header>
+
+      <section id="graph">
+        <h2><span class="handle">§2</span>One graph, two identities</h2>
+        <p class="bluf">The same three nodes use readable names before the boundary and opaque UUIDs after it.</p>
+        <p><code>root</code> is the parent of <code>build</code>; <code>build</code> is the parent of <code>verify</code>. The dashed dependency edges point in the same acyclic direction: <code>build</code> depends on <code>root</code>, and <code>verify</code> depends on <code>build</code>. The example has no self-reference and no cycle. <span class="source-chip" title="Proposed graph shape and edge rules: CHANGE_DESIGN_TG_IDENTITY_GRAPH_APPLY.md · Apply contract and Generate, resolve, validate">design · graph contract</span></p>
+
+        <figure class="graph-figure" aria-labelledby="graph-title graph-caption">
+          <div class="figure-head">
+            <h3 id="graph-title" class="figure-title">Before / after graph map: request refs to durable UUIDs</h3>
+          </div>
+          <svg class="graph-svg" viewBox="0 0 960 430" role="img" aria-label="A root, build, verify graph appears as local names on the left and UUIDs on the right, separated by an apply boundary.">
+            <defs>
+              <marker id="arrow-white" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#e5e3de"/></marker>
+              <marker id="arrow-warn" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#e0b341"/></marker>
+              <marker id="arrow-gray" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#9ca3af"/></marker>
+            </defs>
+            <text x="70" y="39" class="meta">REQUEST-LOCAL REFS</text>
+            <text x="690" y="39" class="meta">DURABLE ITEM IDS</text>
+            <line x1="480" y1="24" x2="480" y2="398" class="boundary"/>
+            <text x="480" y="414" text-anchor="middle" class="meta">apply boundary</text>
+
+            <path d="M110 140 L110 236" class="edge-parent" marker-end="url(#arrow-white)"/>
+            <path d="M110 300 L110 333" class="edge-parent" marker-end="url(#arrow-white)"/>
+            <text x="78" y="190" class="edge-label">parent</text>
+            <text x="78" y="322" class="edge-label">parent</text>
+            <path d="M228 140 L228 236" class="edge-dep" marker-end="url(#arrow-warn)"/>
+            <path d="M228 300 L228 333" class="edge-dep" marker-end="url(#arrow-warn)"/>
+            <text x="236" y="190" class="edge-label">prerequisite</text>
+            <text x="236" y="322" class="edge-label">prerequisite</text>
+            <rect x="70" y="76" width="198" height="64" rx="5" class="node"/>
+            <text x="169" y="105" text-anchor="middle" font-size="23">root</text>
+            <text x="169" y="125" text-anchor="middle" class="meta">ref: root</text>
+            <rect x="70" y="236" width="198" height="64" rx="5" class="node"/>
+            <text x="169" y="265" text-anchor="middle" font-size="23">build</text>
+            <text x="169" y="285" text-anchor="middle" class="meta">ref: build</text>
+            <rect x="70" y="333" width="198" height="64" rx="5" class="node"/>
+            <text x="169" y="362" text-anchor="middle" font-size="23">verify</text>
+            <text x="169" y="382" text-anchor="middle" class="meta">ref: verify</text>
+
+            <path d="M730 140 L730 236" class="edge-parent" marker-end="url(#arrow-white)"/>
+            <path d="M730 300 L730 333" class="edge-parent" marker-end="url(#arrow-white)"/>
+            <text x="698" y="190" class="edge-label">parent</text>
+            <text x="698" y="322" class="edge-label">parent</text>
+            <path d="M850 140 L850 236" class="edge-dep" marker-end="url(#arrow-warn)"/>
+            <path d="M850 300 L850 333" class="edge-dep" marker-end="url(#arrow-warn)"/>
+            <text x="858" y="190" class="edge-label">prerequisite</text>
+            <text x="858" y="322" class="edge-label">prerequisite</text>
+            <rect x="690" y="76" width="204" height="64" rx="5" class="node-id"/>
+            <text x="702" y="101" class="meta">root →</text><text x="702" y="123" font-size="12">018f2b1c-4d5e-7abc-</text><text x="702" y="137" font-size="12">8123-456789abcdef</text>
+            <rect x="690" y="236" width="204" height="64" rx="5" class="node-id"/>
+            <text x="702" y="261" class="meta">build →</text><text x="702" y="283" font-size="12">018f2b1c-4d5e-7abd-</text><text x="702" y="297" font-size="12">8123-456789abcde0</text>
+            <rect x="690" y="333" width="204" height="64" rx="5" class="node-id"/>
+            <text x="702" y="358" class="meta">verify →</text><text x="702" y="380" font-size="12">018f2b1c-4d5e-7abe-</text><text x="702" y="394" font-size="12">8123-456789abcde1</text>
+            <path d="M268 108 L680 108" class="map-line" marker-end="url(#arrow-gray)"/>
+            <path d="M268 268 L680 268" class="map-line" marker-end="url(#arrow-gray)"/>
+            <path d="M268 365 L680 365" class="map-line" marker-end="url(#arrow-gray)"/>
+            <text x="480" y="96" text-anchor="middle" class="edge-label">mapped to</text>
+          </svg>
+          <div class="legend" aria-label="Diagram legend"><span><i class="key"></i> parent edge</span><span><i class="key dep"></i> dependency edge</span><span><i class="key boundary"></i> one apply boundary</span></div>
+          <figcaption id="graph-caption" class="figure-caption">Takeaway: local refs make a request readable, while the committed snapshot contains UUIDs only.</figcaption>
+        </figure>
+      </section>
+
+      <section id="boundary">
+        <h2><span class="handle">§3</span>The boundary turns names into durable edges</h2>
+        <p class="bluf">TG receives generic create fields, resolves each tagged edge target, and returns the mapping that the caller must retain.</p>
+        <p>The current path is smaller: <code>add::run</code> generates one configurable ID, resolves inputs, pushes one <code>Item</code>, and calls the store writer. Its legacy shape is a short value such as <code>tg-a1b2c</code>; <code>resolve_id</code> also accepts a default prefix and prefix matches. The new direction removes that ambiguity: every new item gets a full lowercase canonical UUIDv7, and lookup validates the whole value before exact matching. The <code>id_prefix</code> and <code>id_len</code> settings are removed rather than ignored. <span class="source-chip" title="Current per-item behavior: src/cli/commands/add.rs::run; legacy identity behavior: src/model/id.rs::generate_id_with_prefix and resolve_id; configuration fields: src/store/config.rs::Config::{id_prefix, id_len}">add::run · id</span></p>
+        <p>Malformed, prefixed, shortened, or non-v7 input is <code>invalid_id</code>; a valid canonical UUID with no match is <code>item_not_found</code>. Here is the representative request for the running graph. New items have no caller-supplied durable IDs. Only an <code>existing</code> target may carry a durable UUID anchor.</p>
+        <div class="request-result">
+          <div class="code-panel">
+            <p class="voice-meta code-label">request · stdin to tg apply</p>
+            <pre><code>{
+  "items": [
+    {"ref":"root","title":"Root","parent":null,"dependencies":[]},
+    {"ref":"build","title":"Build","parent":{"local":"root"},
+     "dependencies":[{"local":"root"}],"extensions":{"x-owner":"ci"}},
+    {"ref":"verify","title":"Verify","parent":{"local":"build"},
+     "dependencies":[{"local":"build"}]}
+  ]
+}</code></pre>
+          </div>
+          <div class="code-panel">
+            <p class="voice-meta code-label">result · stable envelope</p>
+            <pre><code>{
+  "operation":"graph_apply",
+  "outcome":"created",
+  "count":3,
+  "mapping":{
+    "build":"018f2b1c-4d5e-7abd-8123-456789abcde0",
+    "root":"018f2b1c-4d5e-7abc-8123-456789abcdef",
+    "verify":"018f2b1c-4d5e-7abe-8123-456789abcde1"
+  }
+}</code></pre>
+          </div>
+        </div>
+        <p class="hint voice-meta">The mapping is complete and lexicographically ordered by request reference. Existing anchors are not in it.</p>
+        <details class="depth">
+          <summary>What TG stores after success</summary>
+          <div>
+            <p><code>Item</code> remains the durable generic shape: status, timestamps, parent, dependency UUIDs, and flattened <code>x-*</code> extension values. TG creates each new item as <code>todo</code>, unclaimed, and unblocked, using one application timestamp. Local names disappear at the boundary.</p>
+          </div>
+        </details>
+      </section>
+
+      <section id="commit">
+        <h2><span class="handle">§4</span>Four phases, one commit</h2>
+        <p class="bluf">The write lock covers snapshot admission through the single task-file rename, so every failure exits before durable graph mutation.</p>
+        <div class="phase-flow" aria-label="Four graph apply phases">
+          <article class="phase"><span class="voice-meta phase-num">01 · lock</span><h3>Lock / snapshot</h3><p>Acquire <code>Store::with_lock</code>. Load active state and archive IDs. Reject duplicate or malformed durable state before allocation.</p></article>
+          <article class="phase"><span class="voice-meta phase-num">02 · map</span><h3>Generate / resolve</h3><p>Generate one fresh UUIDv7 per ref. Resolve <code>local</code> through the request map and <code>existing</code> through exact lookup.</p></article>
+          <article class="phase"><span class="voice-meta phase-num">03 · prove</span><h3>Validate graph</h3><p>Build the proposed active graph in memory. Check item fields, parent rules, dependency rules, and both full-graph cycle sets.</p></article>
+          <article class="phase"><span class="voice-meta phase-num">04 · commit</span><h3>Write once</h3><p>Call <code>write_atomic</code> once. It writes a temp <code>tasks.jsonl</code>, fsyncs it, and renames it into place.</p></article>
+        </div>
+        <p class="failure-line"><span><strong>Any failure stops before rename.</strong> Local allocations and proposed items are discarded; no partial mapping is returned.</span></p>
+        <div class="not-mutated">
+          <p><strong>Outside the commit boundary.</strong> Graph apply does not directly mutate:</p>
+          <ul>
+            <li><code>events.jsonl</code> or <code>events.archive.jsonl</code>: creation has no event in the current <code>EventType</code> model.</li>
+            <li><code>archive.jsonl</code>: existing anchors are read-only, and new items are active.</li>
+            <li><code>cache.db</code>: a successful task rename makes its freshness stamp stale; <code>open_or_rebuild</code> rebuilds it later.</li>
+          </ul>
+        </div>
+        <p class="hint"><span class="source-chip" title="Lock and write boundary: src/store/mod.rs::Store::{with_lock, load_active, save_active}; atomic writer: src/store/jsonl.rs::write_atomic; event kinds: src/events/record.rs::EventType; cache freshness: src/cache/mod.rs::open_or_rebuild">store · write_atomic · cache</span></p>
+      </section>
+
+      <section id="guarantees">
+        <h2><span class="handle">§5</span>Guarantees and caller limits</h2>
+        <p class="bluf">TG guarantees a fresh, valid durable graph on success, but it deliberately does not guarantee replay safety after an uncertain response.</p>
+        <table class="compare">
+          <thead><tr><th>Concern</th><th>Guarantee</th><th>Not a guarantee</th></tr></thead>
+          <tbody>
+            <tr><td>Identity</td><td class="yes">New IDs are exact lowercase canonical UUIDv7s: 36 characters, version 7, RFC variant.</td><td class="no">No workflow meaning is encoded in a TG ID.</td></tr>
+            <tr><td>Existing items</td><td class="yes">Existing UUID targets can anchor edges and remain unchanged.</td><td class="no">Apply cannot update an existing item or edge.</td></tr>
+            <tr><td>Diagnostics</td><td class="yes">The <code>graph_apply</code> error envelope has stable categories, codes, source paths, and deterministic ordering.</td><td class="no">Discarded generated UUIDs are not exposed in request-local errors.</td></tr>
+            <tr><td>References</td><td class="yes">The result maps every local ref to its new UUID.</td><td class="no">Local refs are not persisted or accepted by later lookup.</td></tr>
+            <tr><td>Repeat success</td><td class="yes">Each successful call creates a complete disjoint graph.</td><td class="no">The same request is deliberately non-idempotent.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          <p><strong>Choice ① · retry ownership.</strong> An uncertain retry can create a duplicate graph. TG has no application keys, receipts, digests, or deduplication. A caller that needs recovery must own metadata and query-based reconciliation outside TG.</p>
+        </div>
+        <p><span class="source-chip" title="Fresh graph and recovery boundary: CHANGE_RFC.md · Decision 3 and Consequences; exact IDs: CHANGE_DESIGN_TG_IDENTITY_GRAPH_APPLY.md · Canonical identity">RFC · Decision ③</span></p>
+      </section>
+
+      <section id="generic">
+        <h2><span class="handle">§6</span>Why TG stays generic</h2>
+        <p class="bluf">The chosen shape keeps atomic graph storage small and makes workflow interpretation belong to the consumer that owns it.</p>
+        <ul class="tight-list">
+          <li><strong>No workflow IDs in TG IDs.</strong> UUIDv7 gives opaque identity and optional time ordering. Phase Golem can keep run identity and template node keys in opaque metadata without coupling TG to workflow semantics. <span class="source-chip" title="Ownership boundary: CHANGE_FOUNDATION.md · R4.2-R4.5 and Decision 1">Foundation · R4</span></li>
+          <li><strong>No per-item loop pretending to be atomic.</strong> The operation builds the proposed graph first and calls the existing atomic JSONL writer once. CRUD remains the honest path for later individual changes.</li>
+          <li><strong>No TG application keys or receipts.</strong> TG reports what it created, not whether a caller's business operation already happened. Consumer-owned metadata can support recovery without teaching TG how to interpret it.</li>
+        </ul>
+        <div class="choices">
+          <p><span class="handle">Choice ②</span><strong>Simple authority boundary.</strong> TG owns identity, generic edges, validation, and durability. Phase Golem owns run identity, duplicate prevention, and uncertain-result recovery.</p>
+        </div>
+        <details class="depth">
+          <summary>Source anchors</summary>
+          <div class="anchors">
+            <p><code>src/model/id.rs::generate_id_with_prefix</code> and <code>resolve_id</code> show the short-prefix generator and permissive resolver being replaced.</p>
+            <p><code>src/model/item.rs::Item</code> is the durable item shape with parent, dependencies, status, timestamps, and flattened extensions.</p>
+            <p><code>src/model/deps.rs::{detect_all_cycles, detect_all_parent_cycles, validate_parent}</code> provide the graph validation seams.</p>
+            <p><code>src/model/parent.rs::reparent</code> centralizes parent validation and cycle checks for item mutation.</p>
+            <p><code>src/store/mod.rs::Store::{with_lock, load_active, save_active}</code> define the current lock-scoped store boundary.</p>
+            <p><code>src/store/jsonl.rs::write_atomic</code> performs temp-file write, fsync, and atomic rename.</p>
+            <p><code>src/cli/output.rs::{print_json, print_error}</code> define the structured output seam preserved by the apply contract.</p>
+            <p><code>src/errors.rs::TgError</code> is the current typed error surface that the structured graph diagnostics generalize.</p>
+            <p><code>src/events/record.rs::EventType</code> currently contains status transitions and notes, not creation events.</p>
+            <p><code>src/cache/mod.rs::{is_stale, open_or_rebuild}</code> and <code>src/cache/rebuild.rs::rebuild_to</code> describe derived cache invalidation and replacement.</p>
+          </div>
+        </details>
+      </section>
+
+      <section id="questions">
+        <h2><span class="handle">§7</span>Questions after the read</h2>
+        <p class="bluf">The key questions are about where identity, atomicity, and retry recovery belong.</p>
+        <ul class="tight-list">
+          <li>What would your caller do when the response becomes uncertain after the rename?</li>
+          <li>Which part of the request-to-UUID mapping must survive in your own metadata?</li>
+          <li>Where would you use item CRUD instead of a second graph apply?</li>
+        </ul>
+        <p class="muted">No reader questions have been recorded yet. New questions and answers can be appended to the sidecar for the next rendering.</p>
+      </section>
+
+      <section id="answer-back" class="answer-back">
+        <h2><span class="handle">§8</span>Answer back with handles</h2>
+        <p class="bluf">Edit the scaffold, cite a handle, and copy the markdown into your next message.</p>
+        <textarea id="reply" class="reply-box" aria-label="Markdown reply scaffold">## Reply to TG identity graph apply
+
+- §1 thesis: agree / push back —
+- §2 running graph or §3 boundary: agree / push back —
+- §4 transaction phases: agree / push back —
+- §5 guarantees or Choice ①: agree / push back —
+- §6 generic boundary or Choice ②: agree / push back —
+
+Question or proposed change:
+</textarea>
+        <div class="copy-row">
+          <button id="copy-reply" class="copy-button" type="button">Copy markdown</button>
+          <span id="copy-status" class="voice-meta" role="status" aria-live="polite">copy reads the edited scaffold</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer><p class="voice-meta">TASK GOLEM · GENERIC GRAPH STORAGE · UUIDv7 · ATOMIC JSONL</p></footer>
+
+  <script>
+    const button = document.getElementById('copy-reply');
+    const reply = document.getElementById('reply');
+    const status = document.getElementById('copy-status');
+    button.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard) await navigator.clipboard.writeText(reply.value);
+        else { reply.select(); document.execCommand('copy'); }
+        status.textContent = 'copied';
+      } catch (error) { reply.focus(); reply.select(); status.textContent = 'Select the text and copy it manually'; }
+    });
+  </script>
+</body>
+</html>
