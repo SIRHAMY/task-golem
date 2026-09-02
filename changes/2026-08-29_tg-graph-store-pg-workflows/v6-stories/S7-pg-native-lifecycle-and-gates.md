@@ -4,7 +4,7 @@
 **Change:** 2026-08-29_tg-graph-store-pg-workflows
 **Story ID:** S7
 **Version:** 1.0
-**Status:** Ready
+**Status:** Complete
 **Foundation version:** 3.0
 **Foundation fingerprint:** bccd4078bedbeba0cd7160ad4f35076c794e96cd527fea2b4bcd44396b7e373e
 **RFC version:** 2.0
